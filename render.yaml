@@ -1,0 +1,92 @@
+# Render deployment (Phase 3) — Blueprint: `render blueprint launch`
+#
+# Backend API (Render web service, Docker, Python 3.11):
+#   Dockerfile: backend/Dockerfile (runs `python -m app.init_db` then uvicorn
+#               --workers 4 on $PORT; /api/health/liveness is the health check)
+#   Env:      DATABASE_URL  = Neon pooled URL (-pooler, :6543, sslmode=require)
+#             REDIS_URL     = from the lifeos-redis database below (auto-wired)
+#             NVIDIA_API_KEY = nvapi-... (NIM)
+#             JWT_SECRET     = long random string (generateValue)
+#             CHAT_MODEL     = nano-omni 30B default (override to 120B if wanted)
+#             RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_PLAN_ID
+#                           (Test Mode; webhook secret optional — checkout opens
+#                            without it, only the auto tier-flip needs it)
+#             FRONTEND_URL / CORS_ORIGINS = https://<your-vercel-app>.vercel.app
+#             UPLOAD_DIR    = /app/uploads (see ephemeral-disk note below)
+#
+# Celery worker (Render background worker, same image):
+#   Same env as the API; no port. Scale concurrency via the command.
+#
+# Notes:
+#   - Render free/starter disks are ephemeral: /app/uploads wipes on every
+#     deploy/restart. Queued/in-flight jobs survive in Redis; finished docs stay
+#     indexed (chunks live in Neon). For durable binaries add a Render Disk
+#     (mount /app/uploads, 1GB) or move to S3.
+#   - /chat/stream uses SSE so long turns survive proxy timeouts.
+#   - Redis eviction: default noeviction is fine (broker + rate buckets are small).
+#
+# Frontend (Vercel, NOT Render):
+#   Root:  frontend/
+#   Env:   NEXT_PUBLIC_API_BASE_URL=https://lifeos-api.onrender.com
+#
+# Database (Neon):
+#   - pgvector extension + init_db applies schema.sql, phase2.sql, phase3.sql.
+#   - Verify RLS: sign in as two users; docs visible only to owners.
+
+services:
+  - type: web
+    name: lifeos-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health/liveness
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromDatabase:
+          name: lifeos-redis
+          property: connectionString
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_PLAN_ID
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: UPLOAD_DIR
+        value: /app/uploads
+
+  - type: background
+    name: lifeos-worker
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
+    dockerCommand: celery -A app.tasks.worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50 -Q document_pipeline,celery_dlq
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromDatabase:
+          name: lifeos-redis
+          property: connectionString
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: UPLOAD_DIR
+        value: /app/uploads
+
+databases:
+  - name: lifeos-redis
+    databaseName: lifeos
+    plan: starter
