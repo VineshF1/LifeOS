@@ -17,11 +17,10 @@
 # Celery worker (Render background worker, same image):
 #   Same env as the API; no port. Scale concurrency via the command.
 #
-# Redis (Render Key Value, created manually — one click):
-#   Dashboard → New → Key Value → copy its INTERNAL URL
-#   (redis://red-xxx:6379) into REDIS_URL on both services above.
-#   Manual step is deliberate: Redis-as-code varies by account/region and a
-#   wrong databases: block rejects the whole blueprint.
+# Redis (optional on free — rate limiting fails open without it):
+#   Free path: skip Redis entirely; use sync /documents/upload.
+#   Full path: Upstash (free tier) → paste URL as REDIS_URL on the API, or
+#   Render Dashboard → New → Key Value (paid).
 #
 # Notes:
 #   - Render free/starter disks are ephemeral: /app/uploads wipes on every
@@ -46,7 +45,7 @@ services:
     dockerContext: ./backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health/liveness
-    plan: starter
+    plan: free
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -71,19 +70,23 @@ services:
       - key: UPLOAD_DIR
         value: /app/uploads
 
-  - type: worker
-    name: lifeos-worker
-    runtime: docker
-    dockerContext: ./backend
-    dockerfilePath: ./Dockerfile
-    dockerCommand: celery -A app.tasks.worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50 -Q document_pipeline,celery_dlq
-    plan: starter
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: NVIDIA_API_KEY
-        sync: false
-      - key: UPLOAD_DIR
-        value: /app/uploads
+  # --- Optional (needs a paid Render plan — workers aren't on free) ---
+  # Uncomment to enable async ingestion + DLQ in the cloud. Free alternative:
+  # skip the worker and use sync POST /documents/upload (no Redis needed for
+  # uploads; rate limiting fails open without Redis).
+  # - type: worker
+  #   name: lifeos-worker
+  #   runtime: docker
+  #   dockerContext: ./backend
+  #   dockerfilePath: ./Dockerfile
+  #   dockerCommand: celery -A app.tasks.worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50 -Q document_pipeline,celery_dlq
+  #   plan: starter
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       sync: false
+  #     - key: REDIS_URL
+  #       sync: false
+  #     - key: NVIDIA_API_KEY
+  #       sync: false
+  #     - key: UPLOAD_DIR
+  #       value: /app/uploads
