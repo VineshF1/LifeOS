@@ -43,7 +43,7 @@ services:
     name: lifeos-api
     runtime: docker
     dockerContext: ./backend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /api/health/liveness
     plan: free
     envVars:
