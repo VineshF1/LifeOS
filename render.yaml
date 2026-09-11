@@ -78,7 +78,7 @@ services:
   #   name: lifeos-worker
   #   runtime: docker
   #   dockerContext: ./backend
-  #   dockerfilePath: ./Dockerfile
+  #   dockerfilePath: ./backend/Dockerfile
   #   dockerCommand: celery -A app.tasks.worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50 -Q document_pipeline,celery_dlq
   #   plan: starter
   #   envVars:
