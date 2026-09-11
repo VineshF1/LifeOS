@@ -9,16 +9,17 @@ accounts — everything below is exact.
 |---|---|---|
 | Backend API (FastAPI, Docker, ×4 workers) | Render web service | `backend/` via `render.yaml` |
 | Celery worker (ingestion + DLQ) | Render background worker | same image, `render.yaml` |
-| Redis (broker, rate limits, Pub/Sub) | Render Redis | `render.yaml` → `lifeos-redis` |
+| Redis (broker, rate limits, Pub/Sub) | Render Key Value (manual, 1 click) | Dashboard → New → Key Value |
 | Frontend (Next.js 15) | Vercel | `frontend/` |
 | Database (Neon + pgvector) | Already live | existing `DATABASE_URL` |
 
 ## 1. Backend + worker + Redis — Render
 
 1. dashboard.render.com → New → Blueprint → select the `LifeOS` repo.
-   Creates `lifeos-api` (health check `/api/health/liveness`), `lifeos-worker`,
-   and `lifeos-redis` (`REDIS_URL` auto-wired into both services).
-2. Set env vars on **both** services where listed (copy from repo-root `.env`):
+   Creates `lifeos-api` (health check `/api/health/liveness`) and `lifeos-worker`.
+2. Dashboard → New → Key Value → create, copy its INTERNAL URL
+   (`redis://red-xxx:6379`) → paste as `REDIS_URL` on both services.
+3. Set env vars on **both** services where listed (copy from repo-root `.env`):
 
 ```
 DATABASE_URL (Neon -pooler :6543, sslmode=require)
