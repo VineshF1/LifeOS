@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Env & secrets — never commit filled files
+.env
+backend/.env
+frontend/.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Hermes session state
+.hermes/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
