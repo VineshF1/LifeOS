@@ -23,13 +23,13 @@ function statusClass(status: string): string {
 }
 
 const CATEGORY_DOT: Record<string, string> = {
-  Insurance: "#206bc4",
-  Tax: "#b7791f",
-  Vehicle: "#2f9e44",
-  Utility: "#0ca678",
-  Warranty: "#7048e8",
-  Rental: "#e67700",
-  General: "#98a2b3",
+  Insurance: "var(--cat-Insurance)",
+  Tax: "var(--cat-Tax)",
+  Vehicle: "var(--cat-Vehicle)",
+  Utility: "var(--cat-Utility)",
+  Warranty: "var(--cat-Warranty)",
+  Rental: "var(--cat-Rental)",
+  General: "var(--cat-General)",
 };
 
 export function DocumentList({
