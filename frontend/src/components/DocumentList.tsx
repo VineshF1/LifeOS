@@ -22,15 +22,12 @@ function statusClass(status: string): string {
   return "lx-badge-blue";
 }
 
-const CATEGORY_DOT: Record<string, string> = {
-  Insurance: "var(--cat-Insurance)",
-  Tax: "var(--cat-Tax)",
-  Vehicle: "var(--cat-Vehicle)",
-  Utility: "var(--cat-Utility)",
-  Warranty: "var(--cat-Warranty)",
-  Rental: "var(--cat-Rental)",
-  General: "var(--cat-General)",
-};
+function statusDot(status: string): string {
+  if (status === "ready") return "var(--green)";
+  if (status === "needs_review") return "var(--yellow)";
+  if (status === "failed" || status === "deleted") return "var(--red)";
+  return "var(--accent)";
+}
 
 export function DocumentList({
   documents,
@@ -115,13 +112,14 @@ export function DocumentList({
               >
                 <span
                   aria-hidden
+                  title={`Status: ${document.status.replace("_", " ")}`}
                   style={{
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
                     marginTop: 7,
                     flex: "none",
-                    background: CATEGORY_DOT[document.category] ?? CATEGORY_DOT.General,
+                    background: statusDot(document.status),
                   }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>

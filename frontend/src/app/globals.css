@@ -452,26 +452,6 @@ p {
 }
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* Category dots: vivid in both themes. */
-:root, [data-theme="light"] {
-  --cat-Insurance: #206bc4;
-  --cat-Tax: #b7791f;
-  --cat-Vehicle: #2f9e44;
-  --cat-Utility: #0ca678;
-  --cat-Warranty: #7048e8;
-  --cat-Rental: #e67700;
-  --cat-General: #667085;
-}
-[data-theme="dark"] {
-  --cat-Insurance: #4c9aff;
-  --cat-Tax: #d29922;
-  --cat-Vehicle: #3fb950;
-  --cat-Utility: #2dd4bf;
-  --cat-Warranty: #9e8cff;
-  --cat-Rental: #f09c00;
-  --cat-General: #9aa7b8;
-}
-
 /* Calm aliveness signal for in-progress work: soft pulse, no travel. */
 .pulse-dot {
   width: 8px;
