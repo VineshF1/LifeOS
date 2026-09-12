@@ -108,16 +108,6 @@ function ScopeSelect({
           textAlign: "left",
         }}
       >
-        <span
-          aria-hidden
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            flex: "none",
-            background: current ? "var(--green)" : "var(--accent)",
-          }}
-        />
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {current ? current.filename : "All documents"}
         </span>
