@@ -182,9 +182,9 @@ export default function PricingPage() {
                     ))}
                   </ul>
                   <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
-                    <span className={`lx-badge ${tier === "free" ? "lx-badge-blue" : "lx-badge-muted"}`}>
-                      {tier === "free" ? "Current plan" : "Free forever"}
-                    </span>
+                    {tier === "free" ? (
+                      <span className="lx-badge lx-badge-blue">Current plan</span>
+                    ) : null}
                   </div>
                 </div>
               </div>
