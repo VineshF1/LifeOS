@@ -582,8 +582,16 @@ p {
   color: #e6ebf2;
 }
 
-/* Segmented pill group (filters): wraps so every category stays reachable. */
-.lx-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Segmented pill group (filters): fixed two-row height with internal scroll,
+   so switching filters never moves the list below. */
+.lx-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 74px;
+  overflow-y: auto;
+  align-content: flex-start;
+}
 .lx-pill {
   font: inherit;
   font-size: 0.78rem;
