@@ -403,8 +403,12 @@ export function ChatPane({
         )}
 
         {busy ? (
-          <div className="lx-bubble ai" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, color: "var(--ink-2)" }}>
-            <span className="skel" style={{ width: 14, height: 14, borderRadius: "50%" }} />
+          <div className="lx-bubble ai" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, color: "var(--ink-2)" }}>
+            <span className="typing-dots" role="status" aria-label="Thinking">
+              <span />
+              <span />
+              <span />
+            </span>
             <span className="stream-caret">
               {stages.length > 0 ? stages[stages.length - 1] : "Reading your documents…"}
             </span>

@@ -452,6 +452,25 @@ p {
 }
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* Typing indicator: three dots, staggered rise (no travel, no sweep). */
+.typing-dots { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.typing-dots > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  animation: typing-bounce 1.2s var(--ease-in-out) infinite;
+}
+.typing-dots > span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-dots > span { animation: none; opacity: 0.7; }
+}
+
 /* Calm aliveness signal for in-progress work: soft pulse, no travel. */
 .pulse-dot {
   width: 8px;
@@ -582,14 +601,11 @@ p {
   color: #e6ebf2;
 }
 
-/* Segmented pill group (filters): fixed two-row height with internal scroll,
-   so switching filters never moves the list below. */
+/* Segmented pill group (filters): natural wrap, full list always visible. */
 .lx-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 74px;
-  overflow-y: auto;
   align-content: flex-start;
 }
 .lx-pill {
