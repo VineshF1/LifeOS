@@ -439,7 +439,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="lx-card-body">
-                  <div className="chat-scroll">
+                  <div className="lx-scrollbareless" style={{ maxHeight: 420 }}>
                     <DocumentList
                       documents={filteredDocuments}
                       loading={documentsLoading}
