@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ApprovalModal } from "@/components/ApprovalModal";
 import { ChatPane } from "@/components/ChatPane";
-import { CommandMenu } from "@/components/CommandMenu";
 import { DeletionModal } from "@/components/DeletionModal";
+import { ThemeToggle } from "@/components/theme";
 import { DocumentList } from "@/components/DocumentList";
 import { Dropzone } from "@/components/Dropzone";
 import { AnimatedNumber, GlowCard } from "@/components/primitives";
@@ -252,7 +252,6 @@ export default function DashboardPage() {
             LifeOS Agent
           </span>
           <span style={{ flex: 1 }} />
-          <CommandMenu documents={documents} onSelectDocument={setScopeDocumentId} />
           <span className="lx-hide-mobile" style={{ color: "var(--ink-2)", fontSize: "0.85rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user?.email}
           </span>
@@ -371,8 +370,9 @@ export default function DashboardPage() {
               </div>
             ) : null}
           </div>
+          <ThemeToggle />
           <a href="/pricing" className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }}>
-            Pricing
+            Plans
           </a>
           <button type="button" onClick={signOut} className="lx-btn lx-btn-danger-ghost lx-btn-sm" aria-label="Sign out">
             Sign out

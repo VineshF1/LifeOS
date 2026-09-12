@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChatPane } from "@/components/ChatPane";
 import { ApiError, api, clearToken, getToken, type DocumentOut } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function ChatPage() {
         <div className="lx-container lx-header-inner">
           <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>LifeOS Chat</h1>
           <span style={{ flex: 1 }} />
+          <ThemeToggle />
           <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/">
             Dashboard
           </Link>

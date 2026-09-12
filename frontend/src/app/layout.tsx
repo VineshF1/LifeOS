@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import type { ReactNode } from "react";
-import { Toaster } from "sonner";
+import { Providers } from "@/components/theme";
 
 import "./globals.css";
 
@@ -14,10 +14,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={geist.variable}>
+    <html lang="en" className={geist.variable} suppressHydrationWarning>
       <body className="antialiased">
-        {children}
-        <Toaster position="bottom-right" gap={8} closeButton richColors={false} />
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

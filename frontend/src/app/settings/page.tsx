@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ApiError, api, clearToken, getToken, type TransparencyLog } from "@/lib/api";
 import { Reveal } from "@/components/primitives";
+import { ThemeToggle } from "@/components/theme";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -56,6 +57,7 @@ export default function SettingsPage() {
         <div className="lx-container lx-header-inner">
           <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>Settings & privacy</h1>
           <span style={{ flex: 1 }} />
+          <ThemeToggle />
           <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/">
             Dashboard
           </Link>
