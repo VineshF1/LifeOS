@@ -16,15 +16,15 @@ export function CitationChip({
   const short = filename.length > 28 ? `${filename.slice(0, 28)}…` : filename;
 
   return (
-    <details className="d-inline-block align-middle mx-1">
-      <summary className="badge bg-blue-lt" style={{ cursor: "pointer" }}>
+    <details style={{ display: "inline-block", verticalAlign: "middle", margin: "0 4px" }}>
+      <summary className="lx-badge lx-badge-blue" style={{ cursor: "pointer" }}>
         {short} · p{page}
       </summary>
-      <div className="card card-body citation-pop mt-1 p-2">
-        <div className="fw-medium" style={{ fontSize: 12 }}>
+      <div className="lx-card citation-pop" style={{ marginTop: 4, padding: "0.5rem 0.65rem" }}>
+        <div style={{ fontWeight: 600, fontSize: 12 }}>
           {filename} — page {page}
         </div>
-        <div className="text-muted fst-italic" style={{ fontSize: 12 }}>
+        <div style={{ color: "var(--ink-2)", fontStyle: "italic", fontSize: 12 }}>
           “{excerpt}”
         </div>
       </div>

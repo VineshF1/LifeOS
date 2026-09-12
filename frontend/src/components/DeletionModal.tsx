@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
 
@@ -32,41 +33,46 @@ export function DeletionModal({
   }
 
   return (
-    <div className="modal modal-blur fade show d-block" role="dialog" aria-modal="true">
-      <div className="modal-dialog modal-sm modal-dialog-centered">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">{step === 1 ? "Delete document?" : "Final confirmation"}</h5>
-            <button type="button" className="btn-close" onClick={onClose} aria-label="Close" />
+    <div className="lx-overlay" role="dialog" aria-modal="true">
+      <div className="lx-modal sm" role="document">
+        <motion.div
+          className="modal-content"
+          initial={{ opacity: 0, y: 14, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+        >
+          <div className="lx-modal-head">
+            <h5>{step === 1 ? "Delete document?" : "Final confirmation"}</h5>
+            <button type="button" className="lx-icon-btn" onClick={onClose} aria-label="Close">×</button>
           </div>
-          <div className="modal-body">
+          <div className="lx-modal-body">
             {step === 1 ? (
-              <p className="text-muted">
+              <p style={{ color: "var(--ink-2)" }}>
                 <strong>{filename}</strong> and all its vectors, shares, and drafted tasks will be
                 permanently removed. Any running ingestion is cancelled first.
               </p>
             ) : (
-              <p className="text-danger">
+              <p style={{ color: "var(--red)" }}>
                 This cannot be undone. The file, its embeddings, and related tasks will be hard-deleted.
               </p>
             )}
-            {error && <div className="alert alert-danger py-2">{error}</div>}
+            {error && <div className="lx-alert lx-alert-red">{error}</div>}
           </div>
-          <div className="modal-footer">
-            <button className="btn btn-link" onClick={onClose} disabled={busy}>
+          <div className="lx-modal-foot">
+            <button className="lx-btn lx-btn-ghost" onClick={onClose} disabled={busy}>
               Cancel
             </button>
             {step === 1 ? (
-              <button className="btn btn-danger" onClick={() => setStep(2)}>
+              <button className="lx-btn lx-btn-danger" onClick={() => setStep(2)}>
                 Continue
               </button>
             ) : (
-              <button className="btn btn-danger" onClick={confirmDelete} disabled={busy}>
+              <button className="lx-btn lx-btn-danger" onClick={confirmDelete} disabled={busy}>
                 {busy ? "Deleting…" : "Delete permanently"}
               </button>
             )}
           </div>
-        </div>
+      </motion.div>
       </div>
     </div>
   );

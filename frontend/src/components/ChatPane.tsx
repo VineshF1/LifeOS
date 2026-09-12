@@ -1,6 +1,6 @@
 "use client";
 
-import { IconRobot, IconSend, IconUser } from "@tabler/icons-react";
+import { IconRobot, IconSend } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { DocumentOut, ToolTrace } from "@/lib/api";
@@ -20,15 +20,15 @@ function CitationChip({
   const short = filename.length > 28 ? `${filename.slice(0, 28)}…` : filename;
 
   return (
-    <details className="d-inline-block align-middle mx-1">
-      <summary className="badge bg-blue-lt" style={{ cursor: "pointer" }}>
+    <details style={{ display: "inline-block", verticalAlign: "middle", margin: "0 4px" }}>
+      <summary className="lx-badge lx-badge-blue" style={{ cursor: "pointer" }}>
         {short} · p{page}
       </summary>
-      <div className="card card-body citation-pop mt-1 p-2">
-        <div className="fw-medium" style={{ fontSize: 12 }}>
+      <div className="lx-card citation-pop" style={{ marginTop: 4, padding: "0.5rem 0.65rem" }}>
+        <div style={{ fontWeight: 600, fontSize: 12 }}>
           {filename} — page {page}
         </div>
-        <div className="text-muted fst-italic" style={{ fontSize: 12 }}>
+        <div style={{ color: "var(--ink-2)", fontStyle: "italic", fontSize: 12 }}>
           “{excerpt}”
         </div>
       </div>
@@ -159,11 +159,9 @@ export function ChatPane({
   }
 
   return (
-    <div className="d-flex flex-column h-100">
-      <div className="d-flex align-items-center gap-2 p-3 border-bottom">
-        <label htmlFor="chat-scope" className="form-label mb-0 text-muted">
-          Scope
-        </label>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div className="lx-scopebar">
+        <label htmlFor="chat-scope">Scope</label>
         <select
           id="chat-scope"
           value={scopeDocumentId ?? ""}
@@ -177,7 +175,8 @@ export function ChatPane({
             }
             onScopeChange(next);
           }}
-          className="form-select form-select-sm"
+          className="lx-select"
+          style={{ width: "auto", flex: 1, padding: "0.4rem 0.6rem", fontSize: "0.82rem" }}
         >
           <option value="">All documents</option>
           {documents.map((document) => (
@@ -188,25 +187,30 @@ export function ChatPane({
         </select>
       </div>
 
-      <div ref={scrollRef} className="flex-fill p-3 chat-scroll" style={{ overflowY: "auto", minHeight: 320 }}>
+      <div ref={scrollRef} className="chat-scroll" style={{ flex: 1, overflowY: "auto", padding: "1rem", minHeight: 320 }}>
         {messages.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">
-              <IconRobot size={24} />
+          <div className="lx-empty">
+            <div>
+              <span className="lx-avatar soft-blue" style={{ width: 44, height: 44 }}>
+                <IconRobot size={22} />
+              </span>
             </div>
-            <p className="empty-title">Ask about your documents</p>
-            <p className="empty-subtitle text-muted">The agent will choose tools and cite sources.</p>
-            <div className="empty-action">
+            <p className="lx-empty-title">Ask about your documents</p>
+            <p className="lx-empty-sub">
+              Answers arrive with the exact page cited — try one:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", marginTop: "0.8rem" }}>
               {[
                 "When does my car insurance expire?",
                 "Which bills are due next month?",
-                "What does my rental agreement say about the deposit?",
+                "Explain this document to me",
               ].map((example) => (
                 <button
                   key={example}
                   type="button"
                   onClick={() => setInput(example)}
-                  className="btn btn-sm mb-1 me-1"
+                  className="lx-btn lx-btn-secondary lx-btn-sm"
+                  style={{ borderRadius: 999 }}
                 >
                   {example}
                 </button>
@@ -214,24 +218,18 @@ export function ChatPane({
             </div>
           </div>
         ) : (
-          <div className="d-flex flex-column gap-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {messages.map((message) =>
               message.role === "user" ? (
-                <div key={message.id} className="d-flex justify-content-end gap-2">
-                  <div className="card card-body p-2 px-3 bg-primary text-white" style={{ maxWidth: "85%" }}>
+                <div key={message.id} className="lx-msg" style={{ justifyContent: "flex-end" }}>
+                  <div className="lx-bubble user" style={{ maxWidth: "85%" }}>
                     {message.content}
                   </div>
-                  <span className="avatar avatar-xs rounded-circle bg-muted-lt">
-                    <IconUser size={14} />
-                  </span>
                 </div>
               ) : (
-                <div key={message.id} className="d-flex gap-2">
-                  <span className="avatar avatar-xs rounded-circle bg-blue-lt">
-                    <IconRobot size={14} />
-                  </span>
-                  <div style={{ maxWidth: "92%" }} className="min-w-0">
-                    <div className="card card-body p-2 px-3">
+                <div key={message.id} className="lx-msg">
+                  <div style={{ maxWidth: "94%", minWidth: 0 }}>
+                    <div className="lx-bubble ai">
                       <span className="prose-answer">{renderWithCitations(message.content)}</span>
                     </div>
                   </div>
@@ -242,27 +240,24 @@ export function ChatPane({
         )}
 
         {busy ? (
-          <div className="card card-body p-2 px-3 mt-3 text-muted d-flex flex-row align-items-center gap-2">
-            <span className="spinner-border spinner-border-sm" role="status" />
-            {stages.length > 0 ? stages[stages.length - 1] : "The agent is choosing tools…"}
+          <div className="lx-bubble ai" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, color: "var(--ink-2)" }}>
+            <span className="skel" style={{ width: 14, height: 14, borderRadius: "50%" }} />
+            <span className="stream-caret">
+              {stages.length > 0 ? stages[stages.length - 1] : "Reading your documents…"}
+            </span>
           </div>
         ) : null}
       </div>
 
       {error ? (
-        <div className="alert alert-danger mx-3 mb-2" role="alert">
+        <div className="lx-alert lx-alert-red" role="alert" style={{ margin: "0 1rem 0.5rem" }}>
           {error}
         </div>
       ) : null}
 
-      <div className="p-3 border-top">
+      <div style={{ padding: "0 0.8rem 0.8rem" }}>
         <form
-          className="d-flex align-items-center gap-1 ps-1 pe-1 py-1"
-          style={{
-            border: "1px solid var(--tblr-border-color)",
-            borderRadius: 999,
-            background: "var(--tblr-bg-surface)",
-          }}
+          className="lx-composer"
           onSubmit={(event) => {
             event.preventDefault();
             void send();
@@ -274,20 +269,14 @@ export function ChatPane({
             placeholder="Ask a question about your documents…"
             disabled={busy}
             aria-label="Ask a question about your documents"
-            className="flex-fill ps-3"
-            style={{ border: 0, outline: "none", boxShadow: "none", background: "transparent", minWidth: 0 }}
           />
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="btn btn-primary btn-icon rounded-circle flex-shrink-0"
+            className="lx-send"
             aria-label="Send"
           >
-            {busy ? (
-              <span className="spinner-border spinner-border-sm" role="status" />
-            ) : (
-              <IconSend size={16} />
-            )}
+            {busy ? <span className="lx-spinner sm" role="status" /> : <IconSend size={16} />}
           </button>
         </form>
       </div>

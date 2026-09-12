@@ -37,28 +37,27 @@ export default function ChatPage() {
   }, [toast]);
 
   return (
-    <div className="page">
-      <header className="navbar navbar-expand-md d-print-none">
-        <div className="container-xl">
-          <h1 className="navbar-brand mb-0">LifeOS Chat</h1>
-          <div className="navbar-nav ms-auto flex-row gap-2">
-            <Link className="nav-link" href="/">
-              Dashboard
-            </Link>
-            <Link className="nav-link" href="/settings">
-              Settings
-            </Link>
-          </div>
+    <div className="lx-page">
+      <header className="lx-header">
+        <div className="lx-container lx-header-inner">
+          <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>LifeOS Chat</h1>
+          <span style={{ flex: 1 }} />
+          <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/">
+            Dashboard
+          </Link>
+          <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/settings">
+            Settings
+          </Link>
         </div>
       </header>
-      <div className="page-body">
-        <div className="container-xl" style={{ height: "75vh" }}>
+      <main className="lx-main">
+        <div className="lx-container" style={{ height: "75vh" }}>
           {toast && (
-            <div className="alert alert-warning py-2" role="alert">
+            <div className="lx-alert lx-alert-yellow" role="alert">
               {toast}
             </div>
           )}
-          <div className="card h-100">
+          <div className="lx-card" style={{ height: "100%" }}>
             <ChatPane
               documents={documents}
               scopeDocumentId={scopeDocumentId}
@@ -71,7 +70,7 @@ export default function ChatPage() {
             />
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

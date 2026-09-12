@@ -4,6 +4,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "8000:8000"
     environment:
@@ -16,6 +19,8 @@ services:
       - RAZORPAY_SECRET=${RAZORPAY_SECRET}
       - RAZORPAY_PLAN_ID=${RAZORPAY_PLAN_ID}
       - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - UPLOAD_DIR=/app/uploads
     volumes:
       - shared_uploads:/app/uploads
@@ -28,6 +33,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: celery -A app.tasks.worker.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50 -Q document_pipeline,celery_dlq
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379/0

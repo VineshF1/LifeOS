@@ -1,6 +1,7 @@
 "use client";
 
 import { IconArrowLeft, IconBell, IconCheck, IconTrash } from "@tabler/icons-react";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -9,9 +10,9 @@ import { openNotificationStream } from "@/lib/sse";
 import { formatDate } from "@/lib/utils";
 
 function typeClass(type: string): string {
-  if (type === "deadline") return "bg-red-lt";
-  if (type === "sharing") return "bg-blue-lt";
-  return "bg-muted-lt";
+  if (type === "deadline") return "lx-badge-red";
+  if (type === "sharing") return "lx-badge-blue";
+  return "lx-badge-muted";
 }
 
 export default function NotificationsPage() {
@@ -71,56 +72,69 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-wrapper">
-        <div className="page-body">
-          <div className="container-xl" style={{ maxWidth: 760 }}>
-            <Link href="/" className="btn btn-ghost-secondary btn-sm mb-3">
-              <IconArrowLeft size={16} className="me-1" />
+    <div className="lx-page">
+      <main className="lx-main">
+        <div className="lx-container" style={{ maxWidth: 760 }}>
+            <Link href="/" className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none", marginBottom: "1rem" }}>
+              <IconArrowLeft size={16} />
               Back to dashboard
             </Link>
-            <div className="page-pretitle">Alert center</div>
-            <h2 className="page-title mb-3">Notifications</h2>
-            <p className="text-muted">Documents expiring within 30 days, processing updates, and share invites.</p>
+            <div className="lx-eyebrow">Alert center</div>
+            <h2 className="lx-title" style={{ marginBottom: "0.3rem" }}>Notifications</h2>
+            <p className="lx-sub" style={{ marginBottom: "1.25rem" }}>Documents expiring within 30 days, processing updates, and share invites.</p>
             {notice ? (
-              <div className="alert alert-warning" role="alert">
+              <div className="lx-alert lx-alert-yellow" role="alert" style={{ marginBottom: "1rem" }}>
                 {notice}
               </div>
             ) : null}
             {loading ? (
-              <p className="text-muted">
-                <span className="spinner-border spinner-border-sm me-2" role="status" />
-                Loading…
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }} aria-label="Loading notifications">
+                {[0, 1, 2].map((i) => (
+                  <div key={i}>
+                    <span className="skel" style={{ width: "55%", marginBottom: 4 }} />
+                    <span className="skel" style={{ width: "85%", minHeight: "0.8em" }} />
+                  </div>
+                ))}
+              </div>
             ) : items.length === 0 ? (
-              <div className="empty">
-                <div className="empty-icon">
-                  <IconBell size={24} />
+              <div className="lx-empty">
+                <div>
+                  <span className="lx-avatar soft-green" style={{ width: 44, height: 44 }}>
+                    <IconBell size={22} />
+                  </span>
                 </div>
-                <p className="empty-title">All clear</p>
-                <p className="empty-subtitle text-muted">No alerts right now.</p>
+                <p className="lx-empty-title">All clear</p>
+                <p className="lx-empty-sub">
+                  Deadline alerts, processing updates, and share invites land here.
+                </p>
               </div>
             ) : (
-              <div className="list-group">
-                {items.map((item) => (
-                  <div key={item.id} className={`list-group-item ${item.is_read ? "" : "bg-blue-lt"}`}>
-                    <div className="d-flex align-items-start gap-2">
-                      <div className="flex-fill" style={{ minWidth: 0 }}>
-                        <span className={`badge ${typeClass(item.type)} me-2`}>{item.type}</span>
-                        <span className="fw-medium">{item.title}</span>
-                        <div className="text-muted" style={{ fontSize: 13 }}>
+              <div>
+                {items.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    className="lx-row" style={item.is_read ? undefined : { background: "var(--accent-soft)" }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1], delay: Math.min(index, 6) * 0.04 }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span className={`lx-badge ${typeClass(item.type)}`} style={{ marginRight: 8 }}>{item.type}</span>
+                        <span style={{ fontWeight: 600 }}>{item.title}</span>
+                        <div style={{ color: "var(--ink-2)", fontSize: 13 }}>
                           {item.message}
                         </div>
-                        <div className="text-muted" style={{ fontSize: 12 }}>
+                        <div className="lx-hint">
                           {formatDate(item.created_at)}
                           {item.due_date ? ` · due ${formatDate(item.due_date)}` : null}
                         </div>
                       </div>
-                      <div className="d-flex gap-1 flex-shrink-0">
+                      <div style={{ display: "flex", gap: 4, flex: "none" }}>
                         {!item.is_read ? (
                           <button
                             type="button"
-                            className="btn btn-icon btn-sm"
+                            className="lx-icon-btn"
                             title="Mark as read"
                             aria-label={`Mark "${item.title}" as read`}
                             onClick={() => void markRead(item)}
@@ -130,7 +144,7 @@ export default function NotificationsPage() {
                         ) : null}
                         <button
                           type="button"
-                          className="btn btn-icon btn-sm btn-ghost-danger"
+                          className="lx-icon-btn danger"
                           title="Delete"
                           aria-label={`Delete "${item.title}"`}
                           onClick={() => void remove(item)}
@@ -139,13 +153,12 @@ export default function NotificationsPage() {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
-          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

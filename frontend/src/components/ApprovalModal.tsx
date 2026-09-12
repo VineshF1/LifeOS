@@ -1,6 +1,7 @@
 "use client";
 
-import { IconCheck, IconShieldCheck, IconX } from "@tabler/icons-react";
+import { IconShieldCheck } from "@tabler/icons-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { ApiError, api, type PendingActionOut } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
@@ -32,18 +33,23 @@ export function ApprovalModal({ action, onResolved, onError }: ApprovalModalProp
   }
 
   return (
-    <div className="modal modal-blur show d-block" role="dialog" aria-modal="true" aria-label="Approve agent action">
-      <div className="modal-dialog modal-dialog-centered" role="document">
-        <div className="modal-content">
-          <div className="modal-header">
-            <span className="avatar avatar-sm rounded bg-yellow-lt me-2">
+    <div className="lx-overlay" role="dialog" aria-modal="true" aria-label="Approve agent action">
+      <div className="lx-modal" role="document">
+        <motion.div
+          className="modal-content"
+          initial={{ opacity: 0, y: 14, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
+        >
+          <div className="lx-modal-head">
+            <span className="lx-avatar soft-yellow" style={{ width: 32, height: 32 }}>
               <IconShieldCheck size={16} />
             </span>
-            <h5 className="modal-title">Agent wants your approval</h5>
-            <button type="button" className="btn-close" aria-label="Dismiss" onClick={() => onResolved(action)} />
+            <h5>Agent wants your approval</h5>
+            <button type="button" className="lx-icon-btn" aria-label="Dismiss" onClick={() => onResolved(action)}>×</button>
           </div>
-          <div className="modal-body">
-            <p className="mb-2">
+          <div className="lx-modal-body">
+            <p style={{ marginBottom: "0.8rem" }}>
               The agent drafted <strong>{String(payload.title ?? action.action_type)}</strong>
               {payload.due_date ? (
                 <>
@@ -52,46 +58,42 @@ export function ApprovalModal({ action, onResolved, onError }: ApprovalModalProp
               ) : null}
               . Nothing is committed until you confirm.
             </p>
-            <div className="datagrid">
-              <div className="datagrid-item">
-                <div className="datagrid-title">Action</div>
-                <div className="datagrid-content">{action.action_type}</div>
+            <dl className="lx-datagrid">
+              <div>
+                <dt>Action</dt>
+                <dd>{action.action_type}</dd>
               </div>
-              <div className="datagrid-item">
-                <div className="datagrid-title">Expires</div>
-                <div className="datagrid-content">{action.expires_at ? formatDate(action.expires_at) : "—"}</div>
+              <div>
+                <dt>Expires</dt>
+                <dd>{action.expires_at ? formatDate(action.expires_at) : "—"}</dd>
               </div>
-            </div>
+            </dl>
           </div>
-          <div className="modal-footer">
+          <div className="lx-modal-foot">
             <button
               type="button"
-              className="btn btn-ghost-danger"
+              className="lx-btn lx-btn-danger-ghost"
               disabled={busy !== null}
               onClick={() => void decide("reject")}
             >
               {busy === "reject" ? (
-                <span className="spinner-border spinner-border-sm me-2" role="status" />
-              ) : (
-                <IconX size={16} className="me-1" />
-              )}
+                <span className="lx-spinner sm" role="status" style={{ marginRight: 8 }} />
+              ) : null}
               Reject
             </button>
             <button
               type="button"
-              className="btn btn-primary"
+              className="lx-btn lx-btn-primary"
               disabled={busy !== null}
               onClick={() => void decide("approve")}
             >
               {busy === "approve" ? (
-                <span className="spinner-border spinner-border-sm me-2" role="status" />
-              ) : (
-                <IconCheck size={16} className="me-1" />
-              )}
+                <span className="lx-spinner sm" role="status" style={{ marginRight: 8 }} />
+              ) : null}
               Approve
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

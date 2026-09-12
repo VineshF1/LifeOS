@@ -1,10 +1,11 @@
 "use client";
 
-import { IconArrowLeft, IconCheck, IconCrown } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ApiError, api, clearToken, getToken } from "@/lib/api";
+import { GlowCard, Reveal } from "@/components/primitives";
 
 const FREE_FEATURES = ["5 document uploads", "Single-document Q&A", "Basic task creation"];
 const PRO_FEATURES = [
@@ -69,7 +70,9 @@ export default function PricingPage() {
       // upgrade never flips silently — the user confirms on a payment screen.
       setShowPayment(true);
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Checkout failed.");
+      const message = e instanceof ApiError ? e.message : "Checkout failed.";
+      setNotice(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -91,8 +94,11 @@ export default function PricingPage() {
       setTier(result.subscription_tier);
       setShowPayment(false);
       setNotice(result.message);
+      toast.success("Welcome to Pro.");
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Payment failed.");
+      const message = e instanceof ApiError ? e.message : "Payment failed.";
+      setNotice(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -115,11 +121,12 @@ export default function PricingPage() {
             .billingStatus()
             .then((s) => {
               setTier(s.subscription_tier);
-              setNotice(
+              const msg =
                 s.subscription_tier === "pro"
                   ? "Payment successful — welcome to Pro."
-                  : "Payment received — your Pro activation lands in a moment. Refresh shortly.",
-              );
+                  : "Payment received — your Pro activation lands in a moment. Refresh shortly.";
+              setNotice(msg);
+              toast.success(msg);
             })
             .catch(() => setNotice("Payment received — refresh shortly to see Pro."));
         },
@@ -144,70 +151,71 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-wrapper">
-        <div className="page-body">
-          <div className="container-xl" style={{ maxWidth: 880 }}>
-            <Link href="/" className="btn btn-ghost-secondary btn-sm mb-3">
-              <IconArrowLeft size={16} className="me-1" />
-              Back to dashboard
-            </Link>
-            <div className="page-pretitle">LifeOS Agent plans</div>
-            <h2 className="page-title mb-3">Simple pricing that grows with your paperwork</h2>
-            {notice ? (
-              <div className="alert alert-info" role="alert">
-                {notice}
-              </div>
-            ) : null}
-            <div className="row row-cards">
-              <div className="col-md-6">
-                <div className="card">
-                  <div className="card-body text-center">
-                    <h3 className="card-title">Free</h3>
-                    <div className="display-6 my-2">₹0</div>
-                    <ul className="list-unstyled text-muted">
-                      {FREE_FEATURES.map((f) => (
-                        <li key={f} className="mb-1">
-                          <IconCheck size={14} className="me-1" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <span className={`badge ${tier === "free" ? "bg-blue-lt" : "bg-muted-lt"}`}>
+    <div className="lx-page">
+      <main className="lx-main">
+        <div className="lx-container" style={{ maxWidth: 880 }}>
+          <Link href="/" className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none", marginBottom: "1rem" }}>
+            ← Back to dashboard
+          </Link>
+          <Reveal>
+            <div className="lx-eyebrow">LifeOS Agent plans</div>
+            <h2 className="lx-title" style={{ marginBottom: "0.3rem" }}>Simple pricing that grows with your paperwork</h2>
+            <p className="lx-sub" style={{ marginBottom: "1.5rem" }}>Start free. Upgrade when your vault outgrows it.</p>
+          </Reveal>
+          {notice ? (
+            <div className="lx-alert lx-alert-blue" role="alert" style={{ marginBottom: "1rem" }}>
+              {notice}
+            </div>
+          ) : null}
+          <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+            <Reveal delay={0.05}>
+              <div className="lx-card" style={{ height: "100%" }}>
+                <div className="lx-card-body" style={{ textAlign: "center", display: "flex", flexDirection: "column", height: "100%" }}>
+                  <h3 style={{ fontSize: "1.05rem" }}>Free</h3>
+                  <div className="tnum" style={{ fontSize: "2.2rem", fontWeight: 750, margin: "0.5rem 0" }}>₹0</div>
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0 auto", maxWidth: 260, textAlign: "left", color: "var(--ink-2)" }}>
+                    {FREE_FEATURES.map((f) => (
+                      <li key={f} style={{ marginBottom: "0.55rem", display: "flex", gap: 8 }}>
+                        <span aria-hidden style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
+                    <span className={`lx-badge ${tier === "free" ? "lx-badge-blue" : "lx-badge-muted"}`}>
                       {tier === "free" ? "Current plan" : "Free forever"}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="col-md-6">
-                <div className="card card-stacked">
-                  <div className="card-body text-center">
-                    <h3 className="card-title">
-                      <IconCrown size={16} className="me-1" />
-                      Pro · ₹99/mo
-                    </h3>
-                    <div className="display-6 my-2">₹99</div>
-                    <ul className="list-unstyled text-muted">
-                      {PRO_FEATURES.map((f) => (
-                        <li key={f} className="mb-1">
-                          <IconCheck size={14} className="me-1" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+            </Reveal>
+            <Reveal delay={0.12}>
+              <GlowCard className="h-100">
+                <div className="lx-card-body" style={{ textAlign: "center", display: "flex", flexDirection: "column", height: "100%" }}>
+                  <h3 style={{ fontSize: "1.05rem" }}>★ Pro · ₹99/mo</h3>
+                  <div className="tnum" style={{ fontSize: "2.2rem", fontWeight: 750, margin: "0.5rem 0" }}>₹99</div>
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0 auto", maxWidth: 260, textAlign: "left", color: "var(--ink-2)" }}>
+                    {PRO_FEATURES.map((f) => (
+                      <li key={f} style={{ marginBottom: "0.55rem", display: "flex", gap: 8 }}>
+                        <span aria-hidden style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
                     {tier === "pro" ? (
-                      <span className="badge bg-green-lt">Current plan</span>
+                      <span className="lx-badge lx-badge-green">Current plan</span>
                     ) : showPayment && !razorpayConfigured ? (
-                      <div className="card mt-2" style={{ background: "var(--tblr-bg-surface-secondary)" }}>
-                        <div className="card-body">
-                          <div className="fw-medium mb-1">Demo payment</div>
-                          <p className="text-muted mb-2" style={{ fontSize: 13 }}>
+                      <div className="lx-card" style={{ background: "var(--surface-2)", marginTop: "0.5rem" }}>
+                        <div className="lx-card-body">
+                          <div style={{ fontWeight: 650, marginBottom: "0.25rem" }}>Demo payment</div>
+                          <p className="lx-hint" style={{ marginBottom: "0.6rem" }}>
                             LifeOS Pro · ₹99/mo · test mode, no real charge.
                           </p>
-                          <div className="d-flex gap-2 justify-content-center">
+                          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                             <button
                               type="button"
-                              className="btn btn-outline-secondary"
+                              className="lx-btn lx-btn-secondary"
                               disabled={busy}
                               onClick={() => setShowPayment(false)}
                             >
@@ -215,31 +223,27 @@ export default function PricingPage() {
                             </button>
                             <button
                               type="button"
-                              className="btn btn-primary"
+                              className="lx-btn lx-btn-primary"
                               disabled={busy}
                               onClick={() => void confirmDemoPayment()}
                             >
-                              {busy ? <span className="spinner-border spinner-border-sm me-2" role="status" /> : null}
-                              Pay ₹99
+                              {busy ? "Processing…" : "Pay ₹99"}
                             </button>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <>
-                        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void upgrade()}>
-                          {busy ? <span className="spinner-border spinner-border-sm me-2" role="status" /> : null}
-                          Upgrade to Pro
-                        </button>
-                      </>
+                      <button type="button" className="lx-btn lx-btn-primary" disabled={busy} onClick={() => void upgrade()}>
+                        {busy ? "Working…" : "Upgrade to Pro"}
+                      </button>
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
+              </GlowCard>
+            </Reveal>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

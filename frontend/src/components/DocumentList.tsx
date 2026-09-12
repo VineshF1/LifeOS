@@ -1,6 +1,7 @@
 "use client";
 
 import { IconCalendarDue, IconFileText, IconShare, IconTrash } from "@tabler/icons-react";
+import { motion } from "motion/react";
 import { CATEGORIES, type DocumentOut } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 
@@ -16,10 +17,20 @@ interface DocumentListProps {
 }
 
 function statusClass(status: string): string {
-  if (status === "ready") return "bg-green-lt";
-  if (status === "needs_review") return "bg-yellow-lt";
-  return "bg-blue-lt";
+  if (status === "ready") return "lx-badge-green";
+  if (status === "needs_review") return "lx-badge-yellow";
+  return "lx-badge-blue";
 }
+
+const CATEGORY_DOT: Record<string, string> = {
+  Insurance: "#206bc4",
+  Tax: "#b7791f",
+  Vehicle: "#2f9e44",
+  Utility: "#0ca678",
+  Warranty: "#7048e8",
+  Rental: "#e67700",
+  General: "#98a2b3",
+};
 
 export function DocumentList({
   documents,
@@ -35,13 +46,14 @@ export function DocumentList({
 
   return (
     <div>
-      <div className="d-flex flex-wrap gap-1 mb-3" role="group" aria-label="Filter by category">
+      <div className="lx-pills" role="group" aria-label="Filter by category" style={{ marginBottom: "0.8rem" }}>
         {filters.map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => onCategoryChange(filter)}
-            className={`btn btn-sm ${category === filter ? "btn-primary" : ""}`}
+            className={`lx-pill ${category === filter ? "on" : ""}`}
+            aria-pressed={category === filter}
           >
             {filter}
           </button>
@@ -49,66 +61,99 @@ export function DocumentList({
       </div>
 
       {loading ? (
-        <div className="card card-body text-muted">
-          <span className="spinner-border spinner-border-sm me-2" role="status" />
-          Loading documents…
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }} aria-label="Loading documents">
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span className="skel" style={{ width: 34, height: 34, borderRadius: 10 }} />
+              <span style={{ flex: 1 }}>
+                <span className="skel" style={{ width: "70%", marginBottom: 6 }} />
+                <span className="skel" style={{ width: "45%", minHeight: "0.7em" }} />
+              </span>
+            </div>
+          ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">
-            <IconFileText size={24} />
+        <div className="lx-empty">
+          <div>
+            <span className="lx-avatar soft-blue" style={{ width: 44, height: 44 }}>
+              <IconFileText size={22} />
+            </span>
           </div>
-          <p className="empty-title">No documents yet</p>
-          <p className="empty-subtitle text-muted">Upload a PDF to get started.</p>
+          <p className="lx-empty-title">No documents yet</p>
+          <p className="lx-empty-sub">Upload your first PDF above — bills, policies, warranties.</p>
         </div>
       ) : (
-        <div className="list-group">
-          {documents.map((document) => {
+        <div>
+          {documents.map((document, index) => {
             const deadline = document.metadata?.action_deadline ?? null;
             const amount = document.metadata?.financial_amount ?? null;
             const currency = document.metadata?.currency ?? "";
             const isActive = activeDocumentId === document.id;
 
             return (
-              <div
+              <motion.div
                 key={document.id}
-                className={`list-group-item ${isActive ? "active" : ""}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.4,
+                  ease: [0.23, 1, 0.32, 1],
+                  delay: Math.min(index, 6) * 0.04,
+                }}
+                className={`lx-row doc-row ${isActive ? "doc-row-active" : ""}`}
                 style={{ cursor: "pointer" }}
                 onClick={() => onSelect(document)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isActive}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(document);
+                  }
+                }}
               >
-                <div className="d-flex align-items-start gap-2">
-                  <span className="avatar avatar-sm rounded bg-blue-lt flex-shrink-0">
-                    <IconFileText size={16} />
+                <span
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    marginTop: 7,
+                    flex: "none",
+                    background: CATEGORY_DOT[document.category] ?? CATEGORY_DOT.General,
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {document.filename}
                   </span>
-                  <div className="flex-fill" style={{ minWidth: 0 }}>
-                    <span className="fw-medium d-block text-truncate">{document.filename}</span>
-                    <span className="text-muted d-block" style={{ fontSize: 12 }}>
-                      {document.chunk_count} chunks · {formatDate(document.created_at)} ·{" "}
-                      {document.category}
-                      {amount !== null ? ` · ${currency} ${amount}` : ""}
+                  <span className="tnum" style={{ display: "block", color: "var(--ink-2)", fontSize: 12 }}>
+                    {document.chunk_count} chunks · {formatDate(document.created_at)} ·{" "}
+                    {document.category}
+                    {amount !== null ? ` · ${currency} ${amount}` : ""}
+                  </span>
+                  {deadline ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--ink-2)", fontSize: 12 }}>
+                      <IconCalendarDue size={13} />
+                      Due {formatDate(deadline)}
                     </span>
-                    {deadline ? (
-                      <span
-                        className="text-muted d-flex align-items-center gap-1"
-                        style={{ fontSize: 12 }}
-                      >
-                        <IconCalendarDue size={13} />
-                        {formatDate(deadline)}
-                      </span>
-                    ) : null}
-                    <span className={`badge mt-1 ${statusClass(document.status)}`}>
-                      {document.status}
-                    </span>
-                  </div>
+                  ) : null}
+                  <span className={`lx-badge mt-1 ${statusClass(document.status)}`} style={{ marginTop: 6 }}>
+                    {document.status.replace("_", " ")}
+                  </span>
+                </div>
+                <span className="doc-actions" style={{ display: "flex", gap: 2, flex: "none" }}>
                   {onShare ? (
                     <button
                       type="button"
                       title={`Share ${document.filename}`}
+                      aria-label={`Share ${document.filename}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         onShare(document);
                       }}
-                      className="btn btn-icon btn-sm flex-shrink-0"
+                      className="lx-icon-btn"
                     >
                       <IconShare size={16} />
                     </button>
@@ -116,16 +161,17 @@ export function DocumentList({
                   <button
                     type="button"
                     title={`Delete ${document.filename}`}
+                    aria-label={`Delete ${document.filename}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       onDelete(document);
                     }}
-                    className="btn btn-icon btn-sm btn-ghost-danger flex-shrink-0"
+                    className="lx-icon-btn danger"
                   >
                     <IconTrash size={16} />
                   </button>
-                </div>
-              </div>
+                </span>
+              </motion.div>
             );
           })}
         </div>

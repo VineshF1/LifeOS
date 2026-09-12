@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ApiError, api, clearToken, getToken, type TransparencyLog } from "@/lib/api";
+import { Reveal } from "@/components/primitives";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -37,91 +39,114 @@ export default function SettingsPage() {
     setPurging(true);
     try {
       await api.purgeAccount();
+      toast.success("Everything deleted. Signing out.");
       signOut();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Purge failed. Please try again.");
+      const message = e instanceof ApiError ? e.message : "Purge failed. Please try again.";
+      setError(message);
+      toast.error(message);
       setPurging(false);
       setConfirming(false);
     }
   }
 
   return (
-    <div className="page">
-      <header className="navbar navbar-expand-md d-print-none">
-        <div className="container-xl">
-          <h1 className="navbar-brand mb-0">Settings & Privacy</h1>
-          <div className="navbar-nav ms-auto flex-row gap-2">
-            <Link className="nav-link" href="/">
-              Dashboard
-            </Link>
-            <Link className="nav-link" href="/chat">
-              Chat
-            </Link>
-          </div>
+    <div className="lx-page">
+      <header className="lx-header">
+        <div className="lx-container lx-header-inner">
+          <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>Settings & privacy</h1>
+          <span style={{ flex: 1 }} />
+          <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/">
+            Dashboard
+          </Link>
+          <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/chat">
+            Chat
+          </Link>
         </div>
       </header>
-      <div className="page-body">
-        <div className="container-xl" style={{ maxWidth: 720 }}>
-          {error && <div className="alert alert-danger">{error}</div>}
-          <div className="card mb-3">
-            <div className="card-header">
-              <h3 className="card-title">Data transparency log</h3>
-            </div>
-            <div className="card-body">
-              {loading ? (
-                <div className="text-muted">Loading…</div>
-              ) : log ? (
-                <>
-                  <h4>Stored in PostgreSQL (tenant-isolated, RLS-guarded)</h4>
-                  <ul>
-                    <li>Account metadata: {log.stored_in_postgres.account_metadata.join(", ")}</li>
-                    <li>Documents: {log.stored_in_postgres.documents}</li>
-                    <li>Chunks / vectors: {log.stored_in_postgres.chunks_vectors}</li>
-                    <li>Audit log rows: {log.stored_in_postgres.audit_logs}</li>
-                  </ul>
-                  <p className="text-muted">{log.stored_in_postgres.isolation}</p>
-                  <h4>Sent to NVIDIA NIM</h4>
-                  <p>{log.sent_to_nvidia_nim.what}</p>
-                  <p className="text-muted">
-                    Retention: {log.sent_to_nvidia_nim.retention} · Models:{" "}
-                    {log.sent_to_nvidia_nim.models.join(", ")}
-                  </p>
-                </>
-              ) : null}
-            </div>
-          </div>
-          <div className="card card-borderless bg-red-lt">
-            <div className="card-body">
-              <h3 className="card-title text-danger">Danger zone</h3>
-              {!confirming ? (
-                <>
-                  <p className="text-muted">
-                    Purge deletes your documents, vectors, tasks, shares, notifications, approvals,
-                    audit rows, checkpoints, and the account itself.
-                  </p>
-                  <button className="btn btn-outline-danger" onClick={() => setConfirming(true)}>
-                    Delete my account and all data…
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p>
-                    <strong>This cannot be undone.</strong> Confirm permanent deletion of everything?
-                  </p>
-                  <div className="d-flex gap-2">
-                    <button className="btn btn-secondary" onClick={() => setConfirming(false)}>
-                      Cancel
-                    </button>
-                    <button className="btn btn-danger" onClick={purge} disabled={purging}>
-                      {purging ? "Purging…" : "Yes, purge everything"}
-                    </button>
+      <main className="lx-main">
+        <div className="lx-container" style={{ maxWidth: 720 }}>
+          {error && <div className="lx-alert lx-alert-red" style={{ marginBottom: "1rem" }}>{error}</div>}
+          <Reveal>
+            <div className="lx-card" style={{ marginBottom: "1rem" }}>
+              <div className="lx-card-head">
+                <h3>Data transparency log</h3>
+                <span className="spacer lx-hint">
+                  Live from your account
+                </span>
+              </div>
+              <div className="lx-card-body">
+                {loading ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }} aria-label="Loading transparency log">
+                    <span className="skel" style={{ width: "70%" }} />
+                    <span className="skel" style={{ width: "90%", minHeight: "0.8em" }} />
+                    <span className="skel" style={{ width: "60%", minHeight: "0.8em" }} />
                   </div>
-                </>
-              )}
+                ) : log ? (
+                  <>
+                    <h4 style={{ marginBottom: "0.6rem" }}>Kept in your database</h4>
+                    <div style={{ display: "flex", gap: "1.4rem", marginBottom: "0.9rem" }}>
+                      {[
+                        { v: log.stored_in_postgres.documents, l: "documents" },
+                        { v: log.stored_in_postgres.chunks_vectors, l: "vectors" },
+                        { v: log.stored_in_postgres.audit_logs, l: "audit rows" },
+                      ].map((s) => (
+                        <div key={s.l}>
+                          <div className="tnum" style={{ fontSize: "1.5rem", fontWeight: 700 }}>{s.v}</div>
+                          <div className="lx-hint">{s.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="lx-hint" style={{ fontSize: 13 }}>
+                      Account fields: {log.stored_in_postgres.account_metadata.join(", ")}.
+                      {" "}{log.stored_in_postgres.isolation}
+                    </p>
+                    <hr />
+                    <h4 style={{ marginBottom: "0.6rem" }}>Sent to AI, never stored there</h4>
+                    <p style={{ marginBottom: "0.3rem" }}>{log.sent_to_nvidia_nim.what}</p>
+                    <p className="lx-hint" style={{ fontSize: 13 }}>
+                      Retention: {log.sent_to_nvidia_nim.retention} · Models:{" "}
+                      {log.sent_to_nvidia_nim.models.join(", ")}
+                    </p>
+                  </>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <div className="lx-card" style={{ borderColor: "rgba(224,49,49,0.3)", background: "var(--red-soft)" }}>
+              <div className="lx-card-body">
+                <h3 style={{ color: "var(--red)" }}>Danger zone</h3>
+                {!confirming ? (
+                  <>
+                    <p style={{ color: "var(--ink-2)" }}>
+                      Purge deletes your documents, vectors, tasks, shares, notifications,
+                      approvals, audit rows, checkpoints, and the account itself.
+                    </p>
+                    <button className="lx-btn lx-btn-outline-danger" onClick={() => setConfirming(true)}>
+                      Delete my account and all data…
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      <strong>This cannot be undone.</strong> Confirm permanent deletion of everything?
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="lx-btn lx-btn-secondary" onClick={() => setConfirming(false)}>
+                        Cancel
+                      </button>
+                      <button className="lx-btn lx-btn-danger" onClick={purge} disabled={purging}>
+                        {purging ? "Purging…" : "Yes, purge everything"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </Reveal>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

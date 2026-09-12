@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 import type { ReactNode } from "react";
+import { Toaster } from "sonner";
 
-import "@tabler/core/dist/css/tabler.min.css";
 import "./globals.css";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
   title: "LifeOS Agent",
@@ -11,8 +14,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased">{children}</body>
+    <html lang="en" className={geist.variable}>
+      <body className="antialiased">
+        {children}
+        <Toaster position="bottom-right" gap={8} closeButton richColors={false} />
+      </body>
     </html>
   );
 }

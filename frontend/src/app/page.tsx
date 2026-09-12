@@ -1,24 +1,15 @@
 "use client";
 
-import {
-  IconBell,
-  IconCheck,
-  IconCrown,
-  IconFileText,
-  IconLogout,
-  IconMessageChatbot,
-  IconPlus,
-  IconRefresh,
-  IconShieldCheck,
-  IconTrash,
-} from "@tabler/icons-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ApprovalModal } from "@/components/ApprovalModal";
 import { ChatPane } from "@/components/ChatPane";
+import { CommandMenu } from "@/components/CommandMenu";
+import { DeletionModal } from "@/components/DeletionModal";
 import { DocumentList } from "@/components/DocumentList";
 import { Dropzone } from "@/components/Dropzone";
+import { AnimatedNumber, GlowCard } from "@/components/primitives";
 import { ShareDialog } from "@/components/ShareDialog";
 import { TaskList } from "@/components/TaskList";
 import {
@@ -56,6 +47,7 @@ export default function DashboardPage() {
   const [notifLoading, setNotifLoading] = useState(false);
   const notifRef = useRef<HTMLDivElement | null>(null);
   const [shareDocument, setShareDocument] = useState<DocumentOut | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentOut | null>(null);
 
   const signOut = useCallback(() => {
     clearToken();
@@ -197,8 +189,9 @@ export default function DashboardPage() {
       const next = task.status === "completed" ? "pending" : "completed";
       const updated = await api.updateTaskStatus(task.id, next);
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      if (next === "completed") toast.success("Task completed.");
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Could not update task.");
+      toast.error(e instanceof ApiError ? e.message : "Could not update task.");
     } finally {
       setPendingTaskId(null);
     }
@@ -209,26 +202,15 @@ export default function DashboardPage() {
     try {
       await api.deleteTask(task.id);
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      toast.success("Task deleted.");
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Could not delete task.");
-    }
-  }
-
-  async function deleteDocument(document: DocumentOut) {
-    if (!window.confirm(`Delete ${document.filename}?`)) return;
-    try {
-      await api.deleteDocument(document.id);
-      setDocuments((prev) => prev.filter((d) => d.id !== document.id));
-      if (scopeDocumentId === document.id) setScopeDocumentId(null);
-      // The backend deletes the document's tasks too — reload so orphans vanish.
-      void loadTasks();
-    } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "Could not delete document.");
+      toast.error(e instanceof ApiError ? e.message : "Could not delete task.");
     }
   }
 
   function handleUploaded(result: UploadResponse) {
     setDocuments((prev) => [result.document, ...prev]);
+    toast.success(`“${result.document.filename}” uploaded — indexing now.`);
     if (result.warnings.length > 0) {
       setNotice(`Saved with warnings: ${result.warnings.join("; ")}`);
     } else if (result.message) {
@@ -239,10 +221,18 @@ export default function DashboardPage() {
 
   if (!ready) {
     return (
-      <div className="page page-center">
-        <div className="container container-tight py-4 text-center">
-          <span className="spinner-border" role="status" />
-          <p className="text-muted mt-2 mb-0">Loading LifeOS…</p>
+      <div className="lx-page" style={{ alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 420, padding: "1rem" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
+            <span className="skel" style={{ width: 36, height: 36, borderRadius: 10 }} />
+            <span style={{ flex: 1 }}>
+              <span className="skel" style={{ width: "55%", marginBottom: 6 }} />
+              <span className="skel" style={{ width: "35%", minHeight: "0.7em" }} />
+            </span>
+          </div>
+          <span className="skel" style={{ minHeight: 120, borderRadius: 12, marginBottom: 10 }} />
+          <span className="skel" style={{ width: "60%" }} />
+          <p className="lx-hint" style={{ marginTop: 12 }}>Loading your workspace…</p>
         </div>
       </div>
     );
@@ -254,332 +244,321 @@ export default function DashboardPage() {
   const readyCount = documents.filter((d) => d.status === "ready").length;
 
   return (
-    <div className="page">
-      <header className="navbar navbar-expand-md d-print-none">
-        <div className="container-xl">
-          <h1 className="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-            <span className="avatar avatar-sm rounded me-2" style={{ background: "var(--tblr-primary)" }}>
-              <IconFileText size={18} color="#fff" />
-            </span>
+    <div className="lx-page">
+      <header className="lx-header">
+        <div className="lx-container lx-header-inner">
+          <span className="lx-brand">
+            <span className="lx-avatar blue" style={{ width: 28, height: 28, fontSize: 14 }}>L</span>
             LifeOS Agent
-          </h1>
-          <div className="navbar-nav flex-row order-md-last align-items-center">
-            {/* Plain inline flex row (no Tabler nav-item class): Tabler forces
-                nav-items into a column, which stacked the badge under the email. */}
-            <div
-              className="d-none d-md-flex me-3"
-              style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, whiteSpace: "nowrap", flexWrap: "nowrap" }}
+          </span>
+          <span style={{ flex: 1 }} />
+          <CommandMenu documents={documents} onSelectDocument={setScopeDocumentId} />
+          <span className="lx-hide-mobile" style={{ color: "var(--ink-2)", fontSize: "0.85rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {user?.email}
+          </span>
+          <span className={`lx-badge ${user?.subscription_tier === "pro" ? "lx-badge-green" : "lx-badge-muted"}`}>
+            {user?.subscription_tier === "pro" ? "★ Pro" : "Free"}
+          </span>
+          <div style={{ position: "relative" }} ref={notifRef}>
+            <button
+              type="button"
+              className="lx-icon-btn"
+              title="Notifications"
+              aria-label="Notifications"
+              aria-expanded={notifOpen}
+              onClick={() => {
+                const next = !notifOpen;
+                setNotifOpen(next);
+                if (next) void loadNotifications();
+              }}
+              style={{ position: "relative" }}
             >
-              <span className="text-muted text-truncate" style={{ maxWidth: 220 }}>{user?.email}</span>
-              <span
-                className={`badge flex-shrink-0 mb-0 ${user?.subscription_tier === "pro" ? "bg-green-lt" : "bg-muted-lt"}`}
-                style={{ display: "inline-flex", alignItems: "center", flexDirection: "row", whiteSpace: "nowrap" }}
-              >
-                {user?.subscription_tier === "pro" ? (
-                  <>
-                    <IconCrown size={12} className="me-1" />
-                    Pro
-                  </>
-                ) : (
-                  "Free"
-                )}
-              </span>
-            </div>
-            <div className="nav-item me-2 position-relative" ref={notifRef}>
-              <button
-                type="button"
-                className="btn btn-sm btn-icon position-relative"
-                title="Notifications"
-                aria-label="Notifications"
-                aria-expanded={notifOpen}
-                onClick={() => {
-                  const next = !notifOpen;
-                  setNotifOpen(next);
-                  if (next) void loadNotifications();
-                }}
-              >
-                <IconBell size={16} />
-                {unread > 0 ? (
-                  <span className="badge bg-red position-absolute top-0 start-100 translate-middle rounded-pill">
-                    {unread}
-                  </span>
-                ) : null}
-              </button>
-              {notifOpen ? (
-                <div
-                  className="card position-absolute end-0 mt-2 shadow"
-                  style={{ width: 360, maxWidth: "90vw", zIndex: 1050 }}
-                  role="dialog"
-                  aria-label="Notifications"
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {unread > 0 ? (
+                <span
+                  className="lx-badge lx-badge-red tnum"
+                  style={{ position: "absolute", top: -6, right: -8, padding: "0 5px", fontSize: "0.65rem" }}
                 >
-                  <div className="card-header d-flex align-items-center">
-                    <h3 className="card-title mb-0">Notifications</h3>
-                    <div className="card-actions ms-auto d-flex gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => void loadNotifications()}
-                        disabled={notifLoading}
-                      >
-                        Refresh
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-icon"
-                        aria-label="Close notifications"
-                        onClick={() => setNotifOpen(false)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                  <div className="list-group list-group-flush" style={{ maxHeight: 380, overflowY: "auto" }}>
-                    {notifLoading ? (
-                      <div className="list-group-item text-muted">Loading…</div>
-                    ) : notifications.length === 0 ? (
-                      <div className="list-group-item text-muted">No alerts right now.</div>
-                    ) : (
-                      notifications.slice(0, 8).map((item) => (
-                        <div key={item.id} className={`list-group-item ${item.is_read ? "" : "bg-blue-lt"}`}>
-                          <div className="d-flex align-items-start gap-2">
-                            <div className="flex-fill" style={{ minWidth: 0 }}>
-                              <span className="fw-medium d-block text-truncate">{item.title}</span>
-                              <span className="text-muted d-block" style={{ fontSize: 12 }}>
-                                {item.message}
-                              </span>
-                            </div>
-                            <div className="d-flex gap-1 flex-shrink-0">
-                              {!item.is_read ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-icon btn-sm"
-                                  title="Mark as read"
-                                  aria-label={`Mark "${item.title}" as read`}
-                                  onClick={() => void markNotificationRead(item)}
-                                >
-                                  <IconCheck size={14} />
-                                </button>
-                              ) : null}
-                              <button
-                                type="button"
-                                className="btn btn-icon btn-sm btn-ghost-danger"
-                                title="Delete"
-                                aria-label={`Delete "${item.title}"`}
-                                onClick={() => void deleteNotification(item)}
-                              >
-                                <IconTrash size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="card-footer text-end">
-                    <Link href="/notifications" className="btn btn-sm btn-ghost-secondary">
-                      View all
-                    </Link>
-                  </div>
-                </div>
+                  {unread}
+                </span>
               ) : null}
-            </div>
-            <div className="nav-item me-2">
-              <Link href="/pricing" className="btn btn-sm">
-                Pricing
-              </Link>
-            </div>
-            <div className="nav-item">
-              <button type="button" onClick={signOut} className="btn btn-sm btn-ghost-danger">
-                <IconLogout size={16} className="me-1" />
-                Sign out
-              </button>
-            </div>
+            </button>
+            {notifOpen ? (
+              <div
+                className="lx-card"
+                style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", width: 360, maxWidth: "90vw", zIndex: 150 }}
+                role="dialog"
+                aria-label="Notifications"
+              >
+                <div className="lx-card-head">
+                  <h3>Notifications</h3>
+                  <span className="spacer">
+                    <button
+                      type="button"
+                      className="lx-btn lx-btn-ghost lx-btn-sm"
+                      onClick={() => void loadNotifications()}
+                      disabled={notifLoading}
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      className="lx-icon-btn"
+                      aria-label="Close notifications"
+                      onClick={() => setNotifOpen(false)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </div>
+                <div className="chat-scroll" style={{ maxHeight: 380, overflowY: "auto", padding: "0.4rem" }}>
+                  {notifLoading ? (
+                    <div className="lx-hint" style={{ padding: "0.8rem" }}>Loading…</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="lx-empty">
+                      <p className="lx-empty-title">All caught up</p>
+                      <p className="lx-empty-sub">Deadline and system alerts land here.</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 8).map((item) => (
+                      <div
+                        key={item.id}
+                        className="lx-row"
+                        style={item.is_read ? undefined : { background: "var(--accent-soft)" }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {item.title}
+                          </span>
+                          <span style={{ color: "var(--ink-2)", display: "block", fontSize: 12 }}>
+                            {item.message}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: 2, flex: "none" }}>
+                          {!item.is_read ? (
+                            <button
+                              type="button"
+                              className="lx-icon-btn"
+                              title="Mark as read"
+                              aria-label={`Mark "${item.title}" as read`}
+                              onClick={() => void markNotificationRead(item)}
+                            >
+                              ✓
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="lx-icon-btn danger"
+                            title="Delete"
+                            aria-label={`Delete "${item.title}"`}
+                            onClick={() => void deleteNotification(item)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div style={{ padding: "0.7rem 1rem", borderTop: "1px solid var(--line-soft)", textAlign: "right" }}>
+                  <a href="/notifications" className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }}>
+                    View all
+                  </a>
+                </div>
+              </div>
+            ) : null}
           </div>
+          <a href="/pricing" className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }}>
+            Pricing
+          </a>
+          <button type="button" onClick={signOut} className="lx-btn lx-btn-danger-ghost lx-btn-sm" aria-label="Sign out">
+            Sign out
+          </button>
         </div>
       </header>
 
-      <div className="page-wrapper">
-        <div className="page-header d-print-none">
-          <div className="container-xl">
-            <div className="row g-2 align-items-center">
-              <div className="col">
-                <div className="page-pretitle">Personal document agent</div>
-                <h2 className="page-title">Your documents, turned into action</h2>
-              </div>
-              <div className="col-auto ms-auto d-print-none">
-                <div className="btn-list">
-                  <span className="badge bg-blue-lt">{documents.length} documents</span>
-                  <span className="badge bg-green-lt">{readyCount} ready</span>
-                  <span className="badge bg-yellow-lt">{pendingCount} pending tasks</span>
+      <main className="lx-main">
+        <div className="lx-container">
+          <div style={{ display: "flex", alignItems: "flex-end", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+            <div>
+              <div className="lx-eyebrow">Personal document agent</div>
+              <h2 className="lx-title">Good to see you — here&apos;s your paperwork</h2>
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", gap: "1.4rem" }}>
+              {[
+                { label: "documents", value: documents.length },
+                { label: "ready", value: readyCount },
+                { label: "pending tasks", value: pendingCount },
+              ].map((s) => (
+                <div key={s.label} style={{ textAlign: "right" }}>
+                  <div className="tnum" style={{ fontSize: "1.5rem", fontWeight: 700, lineHeight: 1.1 }}>
+                    <AnimatedNumber value={s.value} />
+                  </div>
+                  <div className="lx-hint">{s.label}</div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div className="page-body">
-          <div className="container-xl">
-            {notice ? (
-              <div className="alert alert-warning alert-dismissible" role="alert">
-                {notice}
-                <button
-                  type="button"
-                  className="btn-close"
-                  aria-label="Dismiss"
-                  onClick={() => setNotice(null)}
+          {notice ? (
+            <div className="lx-alert lx-alert-yellow" role="alert" style={{ marginBottom: "1rem" }}>
+              <span style={{ flex: 1 }}>{notice}</span>
+              <button
+                type="button"
+                className="lx-icon-btn"
+                aria-label="Dismiss"
+                onClick={() => setNotice(null)}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
+          <div className="lx-grid lx-grid-dash">
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <section className="lx-card">
+                <div className="lx-card-head">
+                  <h3>Upload</h3>
+                  <span className="spacer lx-hint">PDF · ≤25 MB</span>
+                </div>
+                <div className="lx-card-body">
+                  <Dropzone onUploaded={handleUploaded} />
+                </div>
+              </section>
+
+              <section className="lx-card">
+                <div className="lx-card-head">
+                  <h3 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Documents · <span className="tnum">{documents.length}</span>
+                  </h3>
+                  <span className="spacer lx-hint">
+                    {documentsLoading ? "loading…" : `${filteredDocuments.length} shown`}
+                  </span>
+                </div>
+                <div className="lx-card-body">
+                  <div style={{ maxHeight: 420, overflowY: "auto" }} className="chat-scroll">
+                    <DocumentList
+                      documents={filteredDocuments}
+                      loading={documentsLoading}
+                      category={category}
+                      onCategoryChange={setCategory}
+                      onSelect={(doc) =>
+                        setScopeDocumentId(doc.id === scopeDocumentId ? null : doc.id)
+                      }
+                      onDelete={(doc) => setDeleteTarget(doc)}
+                      onShare={(doc) => setShareDocument(doc)}
+                      activeDocumentId={scopeDocumentId}
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <section className="lx-card" style={{ display: "flex", flexDirection: "column", minHeight: 560 }}>
+              <div className="lx-card-head">
+                <h3>Ask your documents</h3>
+                <span className="spacer">
+                  <button
+                    type="button"
+                    title="Start a new conversation"
+                    aria-label="Start a new conversation"
+                    onClick={() => setChatKey((key) => key + 1)}
+                    className="lx-icon-btn"
+                  >
+                    +
+                  </button>
+                </span>
+              </div>
+              <div style={{ flex: 1, height: "clamp(480px, calc(100vh - 320px), 720px)" }}>
+                <ChatPane
+                  key={chatKey}
+                  documents={documents}
+                  scopeDocumentId={scopeDocumentId}
+                  onScopeChange={setScopeDocumentId}
+                  onSessionExpired={signOut}
+                  onRateLimited={() =>
+                    toast.warning("Chat rate limit hit (20/min). Slow down a moment.")
+                  }
+                  onTasksChanged={() => {
+                    void loadTasks();
+                    void loadApprovals();
+                    void loadUnread();
+                  }}
                 />
               </div>
-            ) : null}
+            </section>
 
-            <div className="row row-deck row-cards">
-              <div className="col-lg-4 d-flex flex-column gap-3">
-                <div className="card">
-                  <div className="card-header">
-                    <h3 className="card-title">Upload</h3>
-                  </div>
-                  <div className="card-body">
-                    <Dropzone onUploaded={handleUploaded} />
-                  </div>
-                </div>
-
-                <div className="card">
-                  <div className="card-header">
-                    <h3 className="card-title text-truncate" style={{ minWidth: 0 }}>
-                      Documents · {documents.length}
-                    </h3>
-                    <div
-                      className="card-actions text-muted flex-shrink-0 ms-2"
-                      style={{ fontSize: 12 }}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <section className="lx-card">
+                <div className="lx-card-head">
+                  <h3 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Tasks · <span className="tnum">{pendingCount}</span> pending
+                  </h3>
+                  <span className="spacer">
+                    <button
+                      type="button"
+                      title="Reload tasks"
+                      aria-label="Reload tasks"
+                      onClick={() => void loadTasks()}
+                      disabled={tasksLoading}
+                      className="lx-icon-btn"
                     >
-                      {documentsLoading ? "loading…" : `${filteredDocuments.length} shown`}
-                    </div>
-                  </div>
-                  <div className="card-body">
-                    <div style={{ maxHeight: 420, overflowY: "auto" }} className="chat-scroll">
-                      <DocumentList
-                        documents={filteredDocuments}
-                        loading={documentsLoading}
-                        category={category}
-                        onCategoryChange={setCategory}
-                        onSelect={(doc) =>
-                          setScopeDocumentId(doc.id === scopeDocumentId ? null : doc.id)
-                        }
-                        onDelete={(doc) => void deleteDocument(doc)}
-                        onShare={(doc) => setShareDocument(doc)}
-                        activeDocumentId={scopeDocumentId}
-                      />
-                    </div>
-                  </div>
+                      ↻
+                    </button>
+                  </span>
                 </div>
-              </div>
+                <div className="lx-card-body">
+                  <TaskList
+                    tasks={tasks}
+                    loading={tasksLoading}
+                    onToggle={(task) => void toggleTask(task)}
+                    onDelete={(task) => void deleteTask(task)}
+                    pendingId={pendingTaskId}
+                  />
+                </div>
+              </section>
 
-              <div className="col-lg-5">
-                <div className="card d-flex flex-column" style={{ minHeight: 560 }}>
-                  <div className="card-header">
-                    <span className="avatar avatar-xs rounded bg-blue-lt me-2">
-                      <IconMessageChatbot size={14} />
-                    </span>
-                    <h3 className="card-title">Ask your documents</h3>
-                    <div className="card-actions">
+              {approvals.length > 0 ? (
+                <GlowCard>
+                  <div className="lx-card-head" style={{ borderBottom: 0 }}>
+                    <h3>Needs your call · {approvals.length}</h3>
+                  </div>
+                  <div>
+                    {approvals.map((approval) => (
                       <button
+                        key={approval.id}
                         type="button"
-                        title="Start a new conversation"
-                        aria-label="Start a new conversation"
-                        onClick={() => setChatKey((key) => key + 1)}
-                        className="btn btn-icon btn-sm"
+                        className="lx-row"
+                        style={{ width: "100%", textAlign: "left", background: "none", border: 0, cursor: "pointer", font: "inherit", color: "inherit" }}
+                        onClick={() => setActiveApproval(approval)}
                       >
-                        <IconPlus size={16} />
+                        <span style={{ fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {String((approval.payload as Record<string, unknown>).title ?? approval.action_type)}
+                        </span>
+                        <span className="lx-hint">
+                          The agent drafted this — tap to review
+                        </span>
                       </button>
-                    </div>
+                    ))}
                   </div>
-                  <div
-                    className="flex-fill"
-                    style={{ height: "clamp(480px, calc(100vh - 320px), 720px)" }}
-                  >
-                    <ChatPane
-                      key={chatKey}
-                      documents={documents}
-                      scopeDocumentId={scopeDocumentId}
-                      onScopeChange={setScopeDocumentId}
-                      onSessionExpired={signOut}
-                      onTasksChanged={() => {
-                        void loadTasks();
-                        void loadApprovals();
-                        void loadUnread();
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-lg-3 d-flex flex-column gap-3">
-                <div className="card">
-                  <div className="card-header">
-                    <h3 className="card-title text-truncate" style={{ minWidth: 0 }}>
-                      Tasks · {pendingCount} pending
-                    </h3>
-                    <div className="card-actions">
-                      <button
-                        type="button"
-                        title="Reload tasks"
-                        aria-label="Reload tasks"
-                        onClick={() => void loadTasks()}
-                        disabled={tasksLoading}
-                        className="btn btn-icon btn-sm"
-                      >
-                        <IconRefresh size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card-body">
-                    <TaskList
-                      tasks={tasks}
-                      loading={tasksLoading}
-                      onToggle={(task) => void toggleTask(task)}
-                      onDelete={(task) => void deleteTask(task)}
-                      pendingId={pendingTaskId}
-                    />
-                  </div>
-                </div>
-
-                {approvals.length > 0 ? (
-                  <div className="card">
-                    <div className="card-header">
-                      <span className="avatar avatar-xs rounded bg-yellow-lt me-2">
-                        <IconShieldCheck size={14} />
-                      </span>
-                      <h3 className="card-title">Awaiting approval · {approvals.length}</h3>
-                    </div>
-                    <div className="list-group list-group-flush">
-                      {approvals.map((approval) => (
-                        <button
-                          key={approval.id}
-                          type="button"
-                          className="list-group-item list-group-item-action"
-                          onClick={() => setActiveApproval(approval)}
-                        >
-                          <span className="fw-medium d-block text-truncate">
-                            {String((approval.payload as Record<string, unknown>).title ?? approval.action_type)}
-                          </span>
-                          <span className="text-muted" style={{ fontSize: 12 }}>
-                            Agent drafted this — tap to review
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+                </GlowCard>
+              ) : null}
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {activeApproval ? (
         <ApprovalModal
           action={activeApproval}
           onResolved={(updated) => {
             setActiveApproval(updated);
+            if (updated?.status && updated.status !== "pending") {
+              toast.success(updated.status === "approved" ? "Action approved." : "Action rejected.");
+            }
             void loadApprovals();
             void loadTasks();
           }}
@@ -592,6 +571,21 @@ export default function DashboardPage() {
           document={shareDocument}
           onClose={() => setShareDocument(null)}
           onError={(message) => setNotice(message)}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <DeletionModal
+          documentId={deleteTarget.id}
+          filename={deleteTarget.filename}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setDocuments((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+            if (scopeDocumentId === deleteTarget.id) setScopeDocumentId(null);
+            toast.success("Document deleted.");
+            setDeleteTarget(null);
+            void loadTasks();
+          }}
         />
       ) : null}
     </div>
