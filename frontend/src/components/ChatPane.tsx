@@ -1,6 +1,7 @@
 "use client";
 
 import { IconRobot, IconSend } from "@tabler/icons-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { DocumentOut, ToolTrace } from "@/lib/api";
@@ -50,6 +51,187 @@ function renderWithCitations(text: string) {
   }
   if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
   return nodes;
+}
+
+/** Custom scope menu: button + origin-aware animated dropdown (no native select). */
+function ScopeSelect({
+  documents,
+  value,
+  onPick,
+}: {
+  documents: DocumentOut[];
+  value: string | null;
+  onPick: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = documents.find((d) => d.id === value) ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  function choose(id: string | null) {
+    onPick(id);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-labelledby="chat-scope-label"
+        onClick={() => setOpen((v) => !v)}
+        className="lx-select"
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0.45rem 0.65rem",
+          fontSize: "0.82rem",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            flex: "none",
+            background: current ? "var(--green)" : "var(--accent)",
+          }}
+        />
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {current ? current.filename : "All documents"}
+        </span>
+        <motion.span
+          aria-hidden
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+          style={{ display: "inline-flex", flex: "none", color: "var(--ink-3)" }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M3 4.5 6 7.5 9 4.5" />
+          </svg>
+        </motion.span>
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.ul
+            role="listbox"
+            aria-labelledby="chat-scope-label"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              right: 0,
+              zIndex: 60,
+              margin: 0,
+              padding: 4,
+              listStyle: "none",
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              boxShadow: "var(--shadow-2)",
+              maxHeight: 260,
+              overflowY: "auto",
+              transformOrigin: "top center",
+            }}
+          >
+            <ScopeOption
+              active={value === null}
+              label="All documents"
+              hint={`${documents.length} file${documents.length === 1 ? "" : "s"}`}
+              onChoose={() => choose(null)}
+            />
+            {documents.map((d) => (
+              <ScopeOption
+                key={d.id}
+                active={value === d.id}
+                label={d.filename}
+                hint={d.category}
+                onChoose={() => choose(d.id)}
+              />
+            ))}
+          </motion.ul>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ScopeOption({
+  active,
+  label,
+  hint,
+  onChoose,
+}: {
+  active: boolean;
+  label: string;
+  hint: string;
+  onChoose: () => void;
+}) {
+  return (
+    <li role="option" aria-selected={active}>
+      <button
+        type="button"
+        onClick={onChoose}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0.5rem 0.6rem",
+          border: 0,
+          borderRadius: 8,
+          background: active ? "var(--accent-soft)" : "transparent",
+          color: "inherit",
+          font: "inherit",
+          fontSize: "0.84rem",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontWeight: active ? 650 : 400,
+          }}
+        >
+          {label}
+        </span>
+        <span className="lx-hint" style={{ flex: "none" }}>{hint}</span>
+        {active ? (
+          <span aria-hidden style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+        ) : null}
+      </button>
+    </li>
+  );
 }
 
 type Message =
@@ -158,33 +340,25 @@ export function ChatPane({
     });
   }
 
+  function pickScope(next: string | null) {
+    try {
+      if (next) window.localStorage.setItem("lifeos.chatScope", next);
+      else window.localStorage.removeItem("lifeos.chatScope");
+    } catch {
+      // Private mode — skip persistence.
+    }
+    onScopeChange(next);
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div className="lx-scopebar">
-        <label htmlFor="chat-scope">Scope</label>
-        <select
-          id="chat-scope"
-          value={scopeDocumentId ?? ""}
-          onChange={(event) => {
-            const next = event.target.value || null;
-            try {
-              if (next) window.localStorage.setItem("lifeos.chatScope", next);
-              else window.localStorage.removeItem("lifeos.chatScope");
-            } catch {
-              // Private mode — skip persistence.
-            }
-            onScopeChange(next);
-          }}
-          className="lx-select"
-          style={{ width: "auto", flex: 1, padding: "0.4rem 0.6rem", fontSize: "0.82rem" }}
-        >
-          <option value="">All documents</option>
-          {documents.map((document) => (
-            <option key={document.id} value={document.id}>
-              {document.filename}
-            </option>
-          ))}
-        </select>
+        <span id="chat-scope-label">Scope</span>
+        <ScopeSelect
+          documents={documents}
+          value={scopeDocumentId}
+          onPick={pickScope}
+        />
       </div>
 
       <div ref={scrollRef} className="chat-scroll" style={{ flex: 1, overflowY: "auto", padding: "1rem", minHeight: 320 }}>
