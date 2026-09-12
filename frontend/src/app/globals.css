@@ -63,6 +63,7 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light dark;
 }
 
 body {
@@ -560,6 +561,27 @@ p {
 .lx-datagrid dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
 .lx-datagrid dd { margin: 0.15rem 0 0; font-weight: 600; font-size: 0.9rem; }
 
+/* Example prompts: explicit per-theme surfaces (never var-indirection alone). */
+.lx-example {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.42rem 0.95rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.lx-example:hover { border-color: var(--accent); }
+.lx-example:active { transform: scale(0.97); }
+[data-theme="dark"] .lx-example {
+  background: #1a2333;
+  border-color: rgba(230, 235, 242, 0.16);
+  color: #e6ebf2;
+}
+
 /* Segmented pill group (filters): wraps so every category stays reachable. */
 .lx-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .lx-pill {
@@ -577,6 +599,10 @@ p {
 .lx-pill:hover { background: var(--surface-2); color: var(--ink); }
 .lx-pill.on { background: var(--ink); color: #fff; }
 .lx-pill { flex: none; }
+[data-theme="dark"] .lx-pill.on {
+  background: var(--accent-soft);
+  color: #7fb3f0;
+}
 
 /* Command palette bits. */
 .lx-cmd-trigger { display: none; color: var(--ink-2); }

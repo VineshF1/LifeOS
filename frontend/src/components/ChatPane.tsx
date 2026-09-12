@@ -383,8 +383,7 @@ export function ChatPane({
                   key={example}
                   type="button"
                   onClick={() => setInput(example)}
-                  className="lx-btn lx-btn-secondary lx-btn-sm"
-                  style={{ borderRadius: 999 }}
+                  className="lx-example"
                 >
                   {example}
                 </button>
