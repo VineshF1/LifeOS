@@ -439,7 +439,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="lx-card-body">
-                  <div style={{ maxHeight: 420, overflowY: "auto" }} className="chat-scroll">
+                  <div className="chat-scroll">
                     <DocumentList
                       documents={filteredDocuments}
                       loading={documentsLoading}
