@@ -443,10 +443,30 @@ p {
   animation: skel-sweep 1.4s var(--ease-in-out) infinite;
 }
 @keyframes skel-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+[data-theme="dark"] .skel::after {
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.14) 50%, transparent 80%);
+}
 @media (prefers-reduced-motion: reduce) {
   .skel::after, .border-beam, .stream-caret::after { animation: none; }
 }
 .tnum { font-variant-numeric: tabular-nums; }
+
+/* Calm aliveness signal for in-progress work: soft pulse, no travel. */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  animation: pulse-soft 2s var(--ease-in-out) infinite;
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot { animation: none; }
+}
 
 .border-beam {
   position: absolute;

@@ -5,7 +5,6 @@ import { useCallback, useRef, useState } from "react";
 
 import { ApiError, api, type AsyncUploadResponse, type UploadResponse } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
-import { BorderBeam } from "@/components/primitives";
 import { ProcessingCard } from "@/components/ProcessingCard";
 import { openWorkerLiveStream } from "@/lib/sse";
 
@@ -147,7 +146,6 @@ export function Dropzone({ onUploaded, disabled = false }: DropzoneProps) {
           }
         }}
       >
-        {busy ? <BorderBeam /> : null}
         <div style={{ marginBottom: "0.6rem" }}>
           <span className="lx-avatar soft-blue" style={{ width: 44, height: 44 }}>
             {busy ? (
@@ -178,8 +176,7 @@ export function Dropzone({ onUploaded, disabled = false }: DropzoneProps) {
               <IconFileText size={16} className="me-1" />
               Choose PDF file
             </button>
-            <p className="tnum" style={{ color: "var(--ink-3)", marginTop: "0.6rem", fontSize: 13 }}>≤25 MB</p>
-          </div>
+                      </div>
         )}
         <input
           ref={inputRef}

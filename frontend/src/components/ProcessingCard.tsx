@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "motion/react";
-import { BorderBeam } from "@/components/primitives";
 
 const STAGES = ["queued", "parsing", "extracting", "embedding", "ready"] as const;
 
@@ -41,11 +40,11 @@ export function ProcessingCard({
       className="lx-card"
       style={{ position: "relative", overflow: "hidden", marginBottom: "0.6rem" }}
     >
-      {!failed && normalized !== "ready" ? <BorderBeam size={140} duration={8} /> : null}
       <div style={{ padding: "0.85rem 1rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: "0.6rem" }}>
-          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "62%" }} title={filename}>
-            {filename}
+          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "62%", display: "flex", alignItems: "center", gap: 7 }} title={filename}>
+            {!failed && normalized !== "ready" ? <span className="pulse-dot" aria-hidden /> : null}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filename}</span>
           </strong>
           <span
             className={`lx-badge ${failed ? "lx-badge-red" : normalized === "ready" ? "lx-badge-green" : "lx-badge-blue"}`}
