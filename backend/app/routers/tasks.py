@@ -136,5 +136,5 @@ async def task_calendar_export(
     return PlainTextResponse(
         content=str(result["ics"]),
         media_type="text/calendar",
-        headers={"Content-Disposition": f"attachment; filename=lifeos-task-{task_id}.ics"},
+        headers={"Content-Disposition": f"attachment; filename=prova-task-{task_id}.ics"},
     )
