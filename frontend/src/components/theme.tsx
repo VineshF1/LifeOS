@@ -32,11 +32,11 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
   const dark = mounted && theme === "dark";
 
-  /** Theme switch as a real-DOM veil: a disc in the outgoing theme color
-      collapses into the toggle button, revealing the new theme beneath.
-      Transform-only (compositor-driven, no layout/paint per frame), so it
-      runs identically in every browser with no snapshot or timing APIs.
-      Instant switch when reduced motion is preferred. */
+  /** Theme switch as a uniform fade: a veil in the outgoing theme color
+      covers the page, the theme flips beneath it, and the veil fades away
+      to reveal the new theme. No point of origin, so there is nothing to
+      misread — one opacity property, compositor-driven. Instant switch
+      when reduced motion is preferred. */
   function switchTheme(event: MouseEvent<HTMLButtonElement>) {
     const next = dark ? "light" : "dark";
     const reduceMotion =
@@ -45,26 +45,14 @@ export function ThemeToggle() {
       setTheme(next);
       return;
     }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
     const paper =
       getComputedStyle(document.documentElement)
         .getPropertyValue("--paper")
         .trim() || "#ffffff";
-    const cover =
-      Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y),
-      ) + 48;
     const veil = document.createElement("div");
     veil.setAttribute("aria-hidden", "true");
     veil.style.position = "fixed";
-    veil.style.left = `${x - cover}px`;
-    veil.style.top = `${y - cover}px`;
-    veil.style.width = `${cover * 2}px`;
-    veil.style.height = `${cover * 2}px`;
-    veil.style.borderRadius = "50%";
+    veil.style.inset = "0";
     veil.style.background = paper;
     veil.style.pointerEvents = "none";
     veil.style.zIndex = "200";
@@ -74,13 +62,13 @@ export function ThemeToggle() {
       [{ transform: "scale(1)" }, { transform: "scale(0.8)" }, { transform: "scale(1)" }],
       { duration: 380, easing: "ease-out" },
     );
-    // Flip the theme underneath, then collapse the old color into the toggle.
+    // Flip the theme underneath, then fade the old color away.
     setTheme(next);
-    const collapse = veil.animate(
-      [{ transform: "scale(1)", opacity: "1" }, { transform: "scale(0)", opacity: "1" }],
-      { duration: 650, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+    const fade = veil.animate(
+      [{ opacity: "1" }, { opacity: "0" }],
+      { duration: 320, easing: "ease-out" },
     );
-    collapse.onfinish = () => veil.remove();
+    fade.onfinish = () => veil.remove();
   }
 
   return (
