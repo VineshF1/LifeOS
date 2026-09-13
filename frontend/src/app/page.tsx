@@ -425,7 +425,7 @@ export default function DashboardPage() {
 
       <main className="lx-main">
         <div className="lx-container">
-          <div style={{ display: "flex", alignItems: "flex-end", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+          <div className="lx-rise-head" style={{ display: "flex", alignItems: "flex-end", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
             <div>
               <div className="lx-eyebrow">Personal document agent</div>
               <h2 className="lx-title">Good to see you — here&apos;s your paperwork</h2>
