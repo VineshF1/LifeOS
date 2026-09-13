@@ -1,4 +1,4 @@
-# LifeOS Agent — System Architecture (Phase 3)
+# Prova — System Architecture (Phase 3)
 
 End-to-end data flow, queue design, and trust boundaries. Phases 1–2 (sync
 ingestion, JWT auth, LangGraph approvals, Razorpay billing) are retained; Phase 3

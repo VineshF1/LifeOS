@@ -1,4 +1,4 @@
-# LifeOS Agent — Operational Runbook (Phase 3)
+# Prova — Operational Runbook (Phase 3)
 
 ## Local startup (Docker Compose)
 

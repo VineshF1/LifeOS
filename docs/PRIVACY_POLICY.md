@@ -1,4 +1,4 @@
-# LifeOS Agent — Privacy Policy & Security Disclosures (Phase 3)
+# Prova — Privacy Policy & Security Disclosures (Phase 3)
 
 ## Data residency
 
