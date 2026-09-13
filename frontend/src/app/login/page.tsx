@@ -10,9 +10,9 @@ import { ApiError, api, setToken } from "@/lib/api";
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 const TRUST = [
-  { title: "Yours alone", body: "Row-level isolation — no user ever sees another's data." },
-  { title: "Proof attached", body: "Every answer cites the exact page it came from." },
-  { title: "Delete means delete", body: "Vectors, files, history — wiped on request, logged." },
+  { title: "Private by architecture", body: "Your files live in an isolated vault — no user ever touches another's data." },
+  { title: "Every answer shows its proof", body: "Each reply cites the exact page it came from. No blind trust required." },
+  { title: "Delete really deletes", body: "Files, vectors, history — wiped on request, logged for proof." },
 ];
 
 function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
@@ -88,15 +88,15 @@ export default function LoginPage() {
               "radial-gradient(60% 45% at 20% 10%, rgba(32,107,196,0.28), transparent 70%), radial-gradient(50% 40% at 85% 90%, rgba(32,107,196,0.16), transparent 70%)",
           }}
         />
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "0.55rem", fontWeight: 700 }}>
-          <span className="lx-avatar blue" style={{ width: 30, height: 30, fontSize: 15 }}>L</span>
-          LifeOS Agent
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "0.55rem", fontWeight: 700, fontSize: "1.12rem" }}>
+          <img src="/logo.png" alt="Prova logo" className="logo-img logo-on-dark" style={{ width: 30, height: 30 }} />
+          Prova
         </div>
 
         <div style={{ position: "relative", maxWidth: 480 }}>
           <h1 style={{ fontSize: "clamp(2rem, 4vw, 3rem)", fontWeight: 750, lineHeight: 1.05, marginBottom: "1rem" }}>
-            <Reveal>Your paperwork,</Reveal>
-            <Reveal delay={0.08}>answered with proof.</Reveal>
+            <Reveal>Ask your paperwork</Reveal>
+            <Reveal delay={0.08}>anything.</Reveal>
           </h1>
           <motion.p
             style={{ color: "rgba(255,255,255,0.72)", fontSize: 17, marginBottom: "1.5rem" }}
@@ -104,8 +104,9 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: EASE, delay: 0.2 }}
           >
-            Upload bills, policies, and agreements. Ask what anything means, when
-            it expires, what to do next — and see the exact page behind every answer.
+            Upload bills, policies, and warranties. Prova reads them all, then
+            answers with the exact page as proof — expiry dates, hidden
+            charges, fine print. Just ask.
           </motion.p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
             {TRUST.map((t, i) => (
@@ -151,8 +152,8 @@ export default function LoginPage() {
           transition={{ duration: 0.55, ease: EASE, delay: 0.1 }}
         >
           <div className="lx-login-mark">
-            <span className="lx-avatar blue" style={{ width: 40, height: 40, fontSize: 19 }}>L</span>
-            <h1 style={{ fontSize: "1.3rem", fontWeight: 700 }}>LifeOS Agent</h1>
+            <img src="/logo.png" alt="Prova logo" className="logo-img logo-on-dark" style={{ width: 40, height: 40 }} />
+            <h1 style={{ fontSize: "1.6rem", fontWeight: 700 }}>Prova</h1>
           </div>
 
           <h2 style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: "0.25rem" }}>
@@ -237,10 +238,6 @@ export default function LoginPage() {
               </form>
             </div>
           </div>
-
-          <p className="lx-hint" style={{ textAlign: "center", marginTop: "1rem" }}>
-            Protected by tenant-isolated storage and signed sessions.
-          </p>
         </motion.div>
       </div>
 

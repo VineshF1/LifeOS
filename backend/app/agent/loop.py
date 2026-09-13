@@ -22,7 +22,7 @@ from .tools import TOOL_SCHEMAS, ToolContext, execute_tool
 
 logger = logging.getLogger("lifeos.agent")
 
-SYSTEM_PROMPT = """You are LifeOS Agent, a privacy-first personal document assistant. \
+SYSTEM_PROMPT = """You are Prova, a privacy-first personal document assistant. \
 You answer questions about documents the user has uploaded to their own private workspace.
 
 You decide for yourself which tools to call, how many, and in what order. \

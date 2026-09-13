@@ -113,7 +113,7 @@ export default function PricingPage() {
       const rzp = new Razorpay({
         key: keyId,
         subscription_id: subscriptionId,
-        name: "LifeOS Agent",
+        name: "Prova",
         description: "Pro subscription · ₹99/mo",
         handler: () => {
           // Webhook activates Pro; refresh status in case it already landed.
@@ -158,7 +158,7 @@ export default function PricingPage() {
             ← Back to dashboard
           </Link>
           <Reveal>
-            <div className="lx-eyebrow">LifeOS Agent plans</div>
+            <div className="lx-eyebrow">Prova plans</div>
             <h2 className="lx-title" style={{ marginBottom: "0.3rem" }}>Simple pricing that grows with your paperwork</h2>
             <p className="lx-sub" style={{ marginBottom: "1.5rem" }}>Start free. Upgrade when your vault outgrows it.</p>
           </Reveal>
@@ -210,7 +210,7 @@ export default function PricingPage() {
                         <div className="lx-card-body">
                           <div style={{ fontWeight: 650, marginBottom: "0.25rem" }}>Demo payment</div>
                           <p className="lx-hint" style={{ marginBottom: "0.6rem" }}>
-                            LifeOS Pro · ₹99/mo · test mode, no real charge.
+                            Prova Pro · ₹99/mo · test mode, no real charge.
                           </p>
                           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                             <button

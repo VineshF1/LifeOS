@@ -1,1 +1,1 @@
-"""LifeOS Agent backend application package."""
+"""Prova backend application package."""

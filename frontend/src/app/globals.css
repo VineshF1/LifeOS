@@ -123,7 +123,7 @@ p {
   gap: 0.75rem;
   height: 60px;
 }
-.lx-brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; font-size: 1.02rem; }
+.lx-brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 750; font-size: 1.28rem; letter-spacing: -0.01em; }
 .lx-main { padding: 1.75rem 0 3rem; flex: 1; }
 .lx-eyebrow {
   font-size: 0.75rem;
@@ -228,6 +228,10 @@ p {
 .lx-badge-yellow { background: var(--yellow-soft); color: #8a5f18; }
 .lx-badge-gold { background: var(--yellow-soft); color: var(--yellow); font-weight: 700; }
 .lx-badge-muted { background: var(--surface-2); color: var(--ink-2); }
+.logo-img { display: block; object-fit: contain; flex: none; }
+[data-theme="dark"] .logo-img { filter: brightness(0) invert(1); }
+/* Login branding panel is always dark navy — logo stays white there. */
+.logo-on-dark { filter: brightness(0) invert(1); }
 .lx-avatar {
   display: inline-flex;
   align-items: center;
@@ -666,6 +670,20 @@ p {
 }
 .lx-scrollbareless::-webkit-scrollbar {
   display: none;
+}
+/* Scroll-aware fades: the top wash appears only once content scrolls
+   under it, so the first row is never fogged at rest. */
+.lx-scrollbareless.at-top {
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0, black calc(100% - 14px), transparent 100%);
+}
+.lx-scrollbareless.at-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 14px, black 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, black 14px, black 100%);
+}
+.lx-scrollbareless.at-top.at-bottom {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 /* Chat scrollbars, prose, citations. */

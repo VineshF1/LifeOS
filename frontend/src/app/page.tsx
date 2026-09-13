@@ -47,6 +47,22 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<NotificationOut[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+
+  /** Scroll-aware edge fades: no top wash at rest, no bottom wash at end. */
+  function syncListFade() {
+    const el = listScrollRef.current;
+    if (!el) return;
+    el.classList.toggle("at-top", el.scrollTop <= 4);
+    el.classList.toggle(
+      "at-bottom",
+      el.scrollHeight - el.scrollTop - el.clientHeight <= 4,
+    );
+  }
+
+  useEffect(() => {
+    syncListFade();
+  });
   const [shareDocument, setShareDocument] = useState<DocumentOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentOut | null>(null);
   const [viewTarget, setViewTarget] = useState<{ doc: DocumentOut; url: string } | null>(null);
@@ -275,8 +291,8 @@ export default function DashboardPage() {
       <header className="lx-header">
         <div className="lx-container lx-header-inner">
           <span className="lx-brand">
-            <span className="lx-avatar blue" style={{ width: 28, height: 28, fontSize: 14 }}>L</span>
-            LifeOS Agent
+            <img src="/logo.png" alt="Prova logo" className="logo-img" style={{ width: 28, height: 28 }} />
+            Prova
           </span>
           <span style={{ flex: 1 }} />
           <span className="lx-hide-mobile" style={{ color: "var(--ink-2)", fontSize: "0.85rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -467,14 +483,31 @@ export default function DashboardPage() {
                 </div>
                 <div className="lx-card-body">
                   <CategoryPills category={category} onCategoryChange={setCategory} />
-                  <div className="lx-scrollbareless" style={{ maxHeight: 420 }}>
+                  <div
+                    ref={listScrollRef}
+                    onScroll={syncListFade}
+                    className="lx-scrollbareless at-top"
+                    style={{ maxHeight: 250 }}
+                  >
                     <DocumentList
                       documents={filteredDocuments}
                       loading={documentsLoading}
                       category={category}
                       onCategoryChange={setCategory}
                       hideFilters
-                      onSelect={(doc) => openViewer(doc)}
+                      onSelect={(doc) => {
+                        const next = doc.id === scopeDocumentId ? null : doc.id;
+                        setScopeDocumentId(next);
+                        if (next) {
+                          const short =
+                            doc.filename.length > 32
+                              ? doc.filename.slice(0, 32) + "…"
+                              : doc.filename;
+                          toast.success(`Chat scoped to ${short}`);
+                        } else {
+                          toast("Scope cleared — searching all documents.");
+                        }
+                      }}
                       onDelete={(doc) => setDeleteTarget(doc)}
                       onShare={(doc) => setShareDocument(doc)}
                       onView={(doc) => openViewer(doc)}

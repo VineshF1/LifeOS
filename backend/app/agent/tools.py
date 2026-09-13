@@ -476,7 +476,7 @@ async def export_calendar_event(ctx: ToolContext, task_id: str) -> dict[str, Any
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//LifeOS Agent//Tasks//EN",
+        "PRODID:-//Prova//Tasks//EN",
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{stamp}",

@@ -118,7 +118,7 @@ async def _verify_database() -> None:
 
 
 app = FastAPI(
-    title="LifeOS Agent API",
+    title="Prova API",
     version="2.0.0",
     description="Privacy-first personal document and life management agent.",
     lifespan=lifespan,
@@ -213,7 +213,7 @@ async def health() -> dict:
 @app.get("/", tags=["meta"])
 async def root() -> dict:
     return {
-        "service": "LifeOS Agent API",
+        "service": "Prova API",
         "docs": "/docs",
         "endpoints": [
             "POST /auth/signup",

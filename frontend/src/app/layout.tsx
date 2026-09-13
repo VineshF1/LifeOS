@@ -8,7 +8,7 @@ import "./globals.css";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
-  title: "LifeOS Agent",
+  title: "Prova",
   description: "Privacy-first personal document and life management agent",
 };
 

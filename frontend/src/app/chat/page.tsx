@@ -41,7 +41,7 @@ export default function ChatPage() {
     <div className="lx-page">
       <header className="lx-header">
         <div className="lx-container lx-header-inner">
-          <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>LifeOS Chat</h1>
+          <h1 style={{ fontSize: "1.02rem", fontWeight: 700 }}>Prova chat</h1>
           <span style={{ flex: 1 }} />
           <ThemeToggle />
           <Link className="lx-btn lx-btn-ghost lx-btn-sm" style={{ textDecoration: "none" }} href="/">
