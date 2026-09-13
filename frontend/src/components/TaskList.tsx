@@ -49,7 +49,7 @@ export function TaskList({ tasks, loading, onToggle, onDelete, pendingId }: Task
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `lifeos-task-${id}.ics`;
+      anchor.download = `prova-task-${id}.ics`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (e) {
