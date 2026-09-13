@@ -43,17 +43,24 @@ logging.basicConfig(
 logger = logging.getLogger("lifeos")
 
 _MIGRATION_LOCK_KEY = 482913
+_MIGRATION_TIMEOUT_SECONDS = 120
 
 
 async def _run_migrations() -> None:
-    """Apply schema.sql + phase2.sql + phase3.sql under a pg_advisory_lock.
+    """Apply schema.sql + phase2.sql + phase3.sql under a pg advisory lock.
 
     With --workers 4, every worker boots this lifespan concurrently; without
     the lock they race the same DDL (duplicate constraint errors, partial
-    policy states). The lock serialises them; migrations are idempotent so
-    replays are no-ops. Uses asyncpg directly (same as init_db.py) — the
+    policy states). Uses asyncpg directly (same as init_db.py) — the
     pooled SQLAlchemy connection cannot reliably run multi-statement scripts.
+
+    Bounded everywhere: pg_try_advisory_lock with a deadline (a blocking
+    pg_advisory_lock can wedge boot forever against a stale holder), and the
+    whole runner is time-boxed by the caller. Boot must never hang.
     """
+    import asyncio
+    import time
+
     from .database import normalize_database_url
 
     backend_dir = Path(__file__).resolve().parent.parent
@@ -65,14 +72,29 @@ async def _run_migrations() -> None:
 
         dsn, connect_args = normalize_database_url(settings.DATABASE_URL)
         dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
-        connection = await asyncpg.connect(dsn, **connect_args)
+        connection = await asyncio.wait_for(
+            asyncpg.connect(dsn, **connect_args),
+            timeout=60,
+        )
         try:
-            await connection.execute(f"SELECT pg_advisory_lock({_MIGRATION_LOCK_KEY})")
+            deadline = time.monotonic() + 90
+            while True:
+                locked = await connection.fetchval(
+                    f"SELECT pg_try_advisory_lock({_MIGRATION_LOCK_KEY})"
+                )
+                if locked:
+                    break
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("migration lock not acquired in 90s")
+                await asyncio.sleep(2)
             try:
                 for script in scripts:
                     if not script.exists():
                         continue
-                    await connection.execute(script.read_text(encoding="utf-8"))
+                    await asyncio.wait_for(
+                        connection.execute(script.read_text(encoding="utf-8")),
+                        timeout=60,
+                    )
                     logger.info("Migration applied: %s", script.name)
             finally:
                 await connection.execute(f"SELECT pg_advisory_unlock({_MIGRATION_LOCK_KEY})")
