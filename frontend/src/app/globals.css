@@ -634,6 +634,22 @@ p {
   color: #7fb3f0;
 }
 
+/* Dashboard mount entrances: staggered rise, once. */
+@keyframes lx-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.lx-rise-head { animation: lx-rise 0.5s var(--ease-out) both; }
+.lx-grid-dash > * { animation: lx-rise 0.55s var(--ease-out) both; }
+.lx-grid-dash > *:nth-child(2) { animation-delay: 0.07s; }
+.lx-grid-dash > *:nth-child(3) { animation-delay: 0.14s; }
+main .lx-container > section.lx-card { animation: lx-rise 0.55s var(--ease-out) 0.2s both; }
+@media (prefers-reduced-motion: reduce) {
+  .lx-rise-head,
+  .lx-grid-dash > *,
+  main .lx-container > section.lx-card { animation: none; }
+}
+
 /* Command palette bits. */
 .lx-cmd-trigger { display: none; color: var(--ink-2); }
 @media (min-width: 768px) {
