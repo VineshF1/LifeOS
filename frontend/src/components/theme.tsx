@@ -2,7 +2,6 @@
 
 import { ThemeProvider, useTheme } from "next-themes";
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { Toaster } from "sonner";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -33,53 +32,55 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
   const dark = mounted && theme === "dark";
 
-  /** Circular wipe from the toggle point (View Transitions API).
-      Instant switch when unsupported or reduced motion is preferred. */
+  /** Theme switch as a real-DOM veil: a disc in the outgoing theme color
+      collapses into the toggle button, revealing the new theme beneath.
+      Transform-only (compositor-driven, no layout/paint per frame), so it
+      runs identically in every browser with no snapshot or timing APIs.
+      Instant switch when reduced motion is preferred. */
   function switchTheme(event: MouseEvent<HTMLButtonElement>) {
     const next = dark ? "light" : "dark";
-    const doc = document as Document & {
-      startViewTransition?: (cb: () => void) => { ready: Promise<void> };
-    };
     const reduceMotion =
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!doc.startViewTransition || reduceMotion) {
+    if (reduceMotion) {
       setTheme(next);
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    // Pin the eye at the source: quick press-pulse on the button itself.
+    const paper =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--paper")
+        .trim() || "#ffffff";
+    const cover =
+      Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y),
+      ) + 48;
+    const veil = document.createElement("div");
+    veil.setAttribute("aria-hidden", "true");
+    veil.style.position = "fixed";
+    veil.style.left = `${x - cover}px`;
+    veil.style.top = `${y - cover}px`;
+    veil.style.width = `${cover * 2}px`;
+    veil.style.height = `${cover * 2}px`;
+    veil.style.borderRadius = "50%";
+    veil.style.background = paper;
+    veil.style.pointerEvents = "none";
+    veil.style.zIndex = "200";
+    document.body.appendChild(veil);
+    // Press confirmation on the button itself.
     event.currentTarget.animate(
       [{ transform: "scale(1)" }, { transform: "scale(0.8)" }, { transform: "scale(1)" }],
       { duration: 380, easing: "ease-out" },
     );
-    const transition = doc.startViewTransition(() => {
-      flushSync(() => setTheme(next));
-    });
-    void transition.ready.then(() => {
-      const radius = Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y),
-      );
-      document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${radius}px at ${x}px ${y}px)`,
-          ],
-        },
-        {
-          // Single-property wipe over static snapshots: no layout, no
-          // competing animations — the smoothest construction for this
-          // effect on any refresh rate. Gentle attack so the origin at
-          // the toggle reads before the sweep.
-          duration: 700,
-          easing: "cubic-bezier(0.65, 0, 0.35, 1)",
-          pseudoElement: "::view-transition-new(root)",
-        },
-      );
-    });
+    // Flip the theme underneath, then collapse the old color into the toggle.
+    setTheme(next);
+    const collapse = veil.animate(
+      [{ transform: "scale(1)", opacity: "1" }, { transform: "scale(0)", opacity: "1" }],
+      { duration: 650, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+    );
+    collapse.onfinish = () => veil.remove();
   }
 
   return (

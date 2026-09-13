@@ -629,13 +629,6 @@ p {
   background: var(--accent-soft);
   color: #7fb3f0;
 }
-/* Theme-switch wipe: the toggle drives a circular reveal on the new theme;
-   the default crossfade is off so only the wipe shows. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
 
 /* Command palette bits. */
 .lx-cmd-trigger { display: none; color: var(--ink-2); }
