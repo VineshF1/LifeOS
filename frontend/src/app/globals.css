@@ -14,10 +14,10 @@
   --surface-2: #f1f4f8;
   --ink: #101828;
   --ink-2: #475467;
-  --ink-3: #98a2b3;
+  --ink-3: #667085;
   --line: rgba(16, 24, 40, 0.1);
   --line-soft: rgba(16, 24, 40, 0.06);
-
+  --outline-soft: rgba(16, 24, 40, 0.22);
   --accent: #206bc4;
   --accent-ink: #ffffff;
   --accent-soft: rgba(32, 107, 196, 0.09);
@@ -43,9 +43,10 @@
   --surface-2: #1a2333;
   --ink: #e6ebf2;
   --ink-2: #9aa7b8;
-  --ink-3: #5f6b7d;
+  --ink-3: #8b98a9;
   --line: rgba(230, 235, 242, 0.13);
   --line-soft: rgba(230, 235, 242, 0.08);
+  --outline-soft: rgba(255, 255, 255, 0.45);
 
   --accent: #4c9aff;
   --accent-ink: #06121f;
@@ -225,6 +226,7 @@ p {
 .lx-badge-green { background: var(--green-soft); color: #237a37; }
 .lx-badge-red { background: var(--red-soft); color: #c92a2a; }
 .lx-badge-yellow { background: var(--yellow-soft); color: #8a5f18; }
+.lx-badge-gold { background: var(--yellow-soft); color: var(--yellow); font-weight: 700; }
 .lx-badge-muted { background: var(--surface-2); color: var(--ink-2); }
 .lx-avatar {
   display: inline-flex;
@@ -272,11 +274,10 @@ p {
 .lx-row:hover { background: rgba(16, 24, 40, 0.035); }
 .lx-row + .lx-row { border-top: 1px solid var(--line-soft); }
 .doc-row .doc-actions {
-  opacity: 0;
-  transform: translateX(4px);
-  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+  opacity: 0.55;
+  transition: opacity 180ms var(--ease-out);
 }
-.doc-row:hover .doc-actions, .doc-row:focus-within .doc-actions { opacity: 1; transform: none; }
+.doc-row:hover .doc-actions, .doc-row:focus-within .doc-actions { opacity: 1; }
 @media (hover: none) {
   .doc-row .doc-actions { opacity: 1; transform: none; }
 }
@@ -302,6 +303,7 @@ p {
   overflow: hidden;
 }
 .lx-modal.sm { max-width: 380px; }
+.lx-modal.lg { max-width: 880px; }
 .lx-modal-head {
   display: flex;
   align-items: center;
@@ -614,7 +616,7 @@ p {
   font-weight: 600;
   border-radius: var(--r-pill);
   padding: 0.32rem 0.8rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--outline-soft);
   background: transparent;
   color: var(--ink-2);
   cursor: pointer;
@@ -626,6 +628,13 @@ p {
 [data-theme="dark"] .lx-pill.on {
   background: var(--accent-soft);
   color: #7fb3f0;
+}
+/* Theme-switch wipe: the toggle drives a circular reveal on the new theme;
+   the default crossfade is off so only the wipe shows. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 /* Command palette bits. */

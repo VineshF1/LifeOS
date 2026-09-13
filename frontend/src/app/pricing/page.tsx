@@ -204,7 +204,7 @@ export default function PricingPage() {
                   </ul>
                   <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
                     {tier === "pro" ? (
-                      <span className="lx-badge lx-badge-green">Current plan</span>
+                      <span className="lx-badge lx-badge-gold">Current plan</span>
                     ) : showPayment && !razorpayConfigured ? (
                       <div className="lx-card" style={{ background: "var(--surface-2)", marginTop: "0.5rem" }}>
                         <div className="lx-card-body">
