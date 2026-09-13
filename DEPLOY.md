@@ -1,4 +1,4 @@
-# DEPLOY — LifeOS-V3 (Phase 3)
+# DEPLOY — Prova (Phase 3)
 
 Repo is pushed (`main` on `VineshF1/LifeOS`). Pushing to the cloud needs your
 accounts — everything below is exact.
