@@ -1,4 +1,4 @@
--- LifeOS Agent — Phase 2 DDL migrations
+-- Prova — Phase 2 DDL migrations
 -- Target: Neon Serverless PostgreSQL with pgvector >= 0.7.0
 -- Apply with:  python -m app.init_db  (runs schema.sql then this file)
 --

@@ -1,4 +1,4 @@
--- LifeOS Agent — PostgreSQL DDL
+-- Prova — PostgreSQL DDL
 -- Target: Neon Serverless PostgreSQL with pgvector >= 0.7.0
 -- Apply with:  python -m app.init_db
 --

@@ -1,4 +1,4 @@
--- LifeOS Agent — Phase 3 additive migrations
+-- Prova — Phase 3 additive migrations
 -- Target: Neon Serverless PostgreSQL with pgvector >= 0.7.0
 -- Apply with:  python -m app.init_db  (runs schema.sql, phase2.sql, then this file)
 -- Idempotent: safe to re-run (IF NOT EXISTS / IF EXISTS guards throughout).
