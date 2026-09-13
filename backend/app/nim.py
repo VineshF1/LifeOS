@@ -5,11 +5,12 @@ rate-limited upstream can never suspend a FastAPI worker indefinitely.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Sequence
 
 import httpx
-from openai import APITimeoutError, AsyncOpenAI, BadRequestError
+from openai import APIError, APITimeoutError, AsyncOpenAI, BadRequestError
 
 from .config import settings
 
@@ -148,6 +149,67 @@ async def chat_completion(
         except Exception as exc:  # noqa: BLE001
             raise NIMUnavailableError(f"Chat completion failed: {exc}") from exc
     raise NIMTimeoutError(_TIMEOUT_MESSAGE)  # unreachable; keeps types honest
+
+
+async def chat_completion_stream(
+    messages: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    temperature: float = 0.2,
+    max_tokens: int | None = None,
+    timeout: float | None = None,
+):
+    """Yield answer text deltas as the model generates them.
+
+    Same contract as chat_completion but streaming: first token typically
+    arrives in ~2s, so the UI can render words live instead of showing a
+    silent wait for the whole turn. Raises the same NIM* errors.
+    """
+    from collections.abc import AsyncIterator
+
+    chosen = model or settings.CHAT_MODEL
+    kwargs: dict[str, Any] = {
+        "model": chosen,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens or settings.AGENT_MAX_TOKENS,
+        "stream": True,
+    }
+    if timeout:
+        kwargs["timeout"] = timeout
+
+    try:
+        for _attempt in (0, 1):
+            try:
+                stream: AsyncIterator[Any] = await client.chat.completions.create(**kwargs)
+                async for chunk in stream:
+                    for choice in chunk.choices:
+                        delta = getattr(getattr(choice, "delta", None), "content", None)
+                        if delta:
+                            yield delta
+                return
+            except APIError as exc:
+                # NOTE: APITimeoutError/BadRequestError also subclass APIError;
+                # keep their dedicated contracts before the generic handling.
+                if isinstance(exc, APITimeoutError):
+                    raise NIMTimeoutError(_TIMEOUT_MESSAGE) from exc
+                if isinstance(exc, BadRequestError):
+                    raise NIMSchemaUnsupportedError(f"Request rejected by NIM: {exc}") from exc
+                # Transient NIM capacity blip: wait 5s and try once more
+                # instead of failing a turn the user watched stream.
+                if getattr(exc, "status_code", None) == 503 and _attempt == 0:
+                    logger.warning("NIM overloaded; retrying chat stream once after 5s.")
+                    await asyncio.sleep(5)
+                    continue
+                raise NIMUnavailableError(f"Chat stream failed: {exc}") from exc
+    except (httpx.TimeoutException, APITimeoutError) as exc:
+        raise NIMTimeoutError(_TIMEOUT_MESSAGE) from exc
+    except BadRequestError as exc:
+        raise NIMSchemaUnsupportedError(f"Request rejected by NIM: {exc}") from exc
+    except (NIMTimeoutError, NIMSchemaUnsupportedError, NIMUnavailableError):
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise NIMUnavailableError(f"Chat stream failed: {exc}") from exc
 
 
 async def close_client() -> None:

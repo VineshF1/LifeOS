@@ -82,9 +82,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/app/uploads"
     MAX_UPLOAD_MB: int = 25
 
-    # Phase 3 chat model: fast MoE reasoner for interactive Q&A (thinking off).
-    # Extraction/metadata stays on LLM_MODEL (120B) unless overridden.
-    CHAT_MODEL: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    # Chat model: the 120B instruct model (same as LLM_MODEL). Tried faster
+    # 30B options — the reasoning nano thinks ~45s/turn (reads as hung) and
+    # Lightning answers poorly — so interactive Q&A stays on the proven
+    # model until the key is entitled for better small models.
+    CHAT_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
     EMBED_MODEL: str = "nvidia/nemotron-3-embed-1b"
     EMBED_DIMENSIONS: int = 2048
 

@@ -34,6 +34,7 @@ export async function streamChat(
   documentId: string | null,
   handlers: {
     onProgress: (progress: StreamProgress) => void;
+    onToken?: (content: string) => void;
     onAnswer: (answer: StreamAnswer) => void;
     onError: (message: string) => void;
   },
@@ -93,6 +94,7 @@ export async function streamChat(
     try {
       const payload = JSON.parse(data);
       if (event === "progress") handlers.onProgress(payload as StreamProgress);
+      else if (event === "token") handlers.onToken?.(String(payload?.content ?? ""));
       else if (event === "answer") handlers.onAnswer(payload as StreamAnswer);
       else if (event === "error") handlers.onError(String(payload?.message ?? "Chat failed."));
     } catch {
@@ -103,7 +105,8 @@ export async function streamChat(
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    // SSE over the wire uses CRLF; normalize so frame splitting works.
+    buffer += decoder.decode(value, { stream: true }).split(String.fromCharCode(13)).join("");
     const frames = buffer.split("\n\n");
     buffer = frames.pop() ?? "";
     for (const frame of frames) {

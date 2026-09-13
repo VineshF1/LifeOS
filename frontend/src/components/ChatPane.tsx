@@ -8,6 +8,11 @@ import type { DocumentOut, ToolTrace } from "@/lib/api";
 import { streamChat } from "@/lib/sse";
 
 const SOURCE_TAG = /\[Source:\s*(.*?),\s*Page:\s*(\d+),\s*Excerpt:\s*"([^"]*)"\]/g;
+/** Raw model citation tags are hidden while tokens stream in; the final
+    rendered answer replaces them with citation chips. */
+const RAW_REF_TAG = /\[REF:[^\]]*\]/g;
+/** Fullwidth-styled variant some models emit while streaming. */
+const RAW_REF_TAG_WIDE = /【REF:[^】]*】/g;
 
 function CitationChip({
   filename,
@@ -37,6 +42,18 @@ function CitationChip({
   );
 }
 
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const parts = text.split("**");
+  if (parts.length === 1) return [text];
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <strong key={keyPrefix + "-b" + i}>{part}</strong>
+    ) : (
+      <span key={keyPrefix + "-t" + i}>{part}</span>
+    ),
+  );
+}
+
 function renderWithCitations(text: string) {
   const nodes: ReactNode[] = [];
   const regex = new RegExp(SOURCE_TAG.source, "g");
@@ -45,11 +62,12 @@ function renderWithCitations(text: string) {
   let key = 0;
 
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    nodes.push(<CitationChip key={`cite-${key++}`} filename={match[1]} page={match[2]} excerpt={match[3]} />);
+    if (match.index > lastIndex)
+      nodes.push(...renderInline(text.slice(lastIndex, match.index), "seg" + key));
+    nodes.push(<CitationChip key={"cite-" + key++} filename={match[1]} page={match[2]} excerpt={match[3]} />);
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  if (lastIndex < text.length) nodes.push(...renderInline(text.slice(lastIndex), "seg" + key + "-end"));
   return nodes;
 }
 
@@ -255,8 +273,10 @@ export function ChatPane({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [stages, setStages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
 
@@ -284,15 +304,20 @@ export function ChatPane({
     }
   }, [scopeDocumentId, documents, onScopeChange]);
 
-  async function send() {
-    const question = input.trim();
+  async function send(text?: string) {
+    const question = (text ?? input).trim();
     if (!question || busy) return;
 
     setError(null);
+    setFailedQuestion(null);
     setInput("");
     setStages([]);
+    setStreaming(false);
     setMessages((previous) => [...previous, { id: nextId.current++, role: "user", content: question }]);
     setBusy(true);
+    // Tokens render live into a placeholder assistant message; the final
+    // cited answer replaces it. Escalated turns (no tokens) append on answer.
+    let streamMsgId: number | null = null;
 
     // Multi-doc synthesis streams progress per tool step so long turns show
     // visible progress instead of a silent wait (proxy-timeout safe).
@@ -300,22 +325,58 @@ export function ChatPane({
       onProgress: (progress) => {
         setStages((prev) => (prev.includes(progress.stage) ? prev : [...prev, progress.stage]));
       },
+      onToken: (content) => {
+        if (!content) return;
+        setStreaming(true);
+        if (streamMsgId === null) {
+          streamMsgId = nextId.current++;
+          const id = streamMsgId;
+          setMessages((previous) => [
+            ...previous,
+            { id, role: "assistant", content: content.replace(RAW_REF_TAG, "").replace(RAW_REF_TAG_WIDE, ""), toolTrace: [], iterations: 0 },
+          ]);
+        } else {
+          const id = streamMsgId;
+          setMessages((previous) =>
+            previous.map((m) =>
+              m.id === id && m.role === "assistant"
+                ? { ...m, content: (m.content + content).replace(RAW_REF_TAG, "").replace(RAW_REF_TAG_WIDE, "") }
+                : m,
+            ),
+          );
+        }
+      },
       onAnswer: (answer) => {
-        setMessages((previous) => [
-          ...previous,
-          {
-            id: nextId.current++,
-            role: "assistant",
-            content: answer.answer,
-            toolTrace: [],
-            iterations: answer.iterations ?? 0,
-          },
-        ]);
+        if (streamMsgId !== null) {
+          const id = streamMsgId;
+          setMessages((previous) =>
+            previous.map((m) =>
+              m.id === id && m.role === "assistant"
+                ? { ...m, content: answer.answer, iterations: answer.iterations ?? 0 }
+                : m,
+            ),
+          );
+        } else {
+          setMessages((previous) => [
+            ...previous,
+            {
+              id: nextId.current++,
+              role: "assistant",
+              content: answer.answer,
+              toolTrace: [],
+              iterations: answer.iterations ?? 0,
+            },
+          ]);
+        }
         setBusy(false);
+        setStreaming(false);
         setStages([]);
         onTasksChanged();
       },
       onError: (message) => {
+        // Keep any partial streamed answer visible; the error alert below
+        // offers Retry for the same question instead of losing everything.
+        setFailedQuestion(question);
         if (message === "Your session expired. Please sign in again.") {
           onSessionExpired();
           return;
@@ -325,6 +386,7 @@ export function ChatPane({
         }
         setError(message);
         setBusy(false);
+        setStreaming(false);
         setStages([]);
       },
     });
@@ -402,7 +464,7 @@ export function ChatPane({
           </div>
         )}
 
-        {busy ? (
+        {busy && !streaming ? (
           <div className="lx-bubble ai" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, color: "var(--ink-2)" }}>
             <span className="typing-dots" role="status" aria-label="Thinking">
               <span />
@@ -417,8 +479,21 @@ export function ChatPane({
       </div>
 
       {error ? (
-        <div className="lx-alert lx-alert-red" role="alert" style={{ margin: "0 1rem 0.5rem" }}>
-          {error}
+        <div
+          className="lx-alert lx-alert-red"
+          role="alert"
+          style={{ margin: "0 1rem 0.5rem", display: "flex", alignItems: "center", gap: 8 }}
+        >
+          <span style={{ flex: 1 }}>{error}</span>
+          {failedQuestion && !busy ? (
+            <button
+              type="button"
+              className="lx-btn lx-btn-ghost"
+              onClick={() => void send(failedQuestion)}
+            >
+              Retry
+            </button>
+          ) : null}
         </div>
       ) : null}
 

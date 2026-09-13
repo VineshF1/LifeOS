@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..nim import chat_completion
+from ..nim import chat_completion, chat_completion_stream
 from ..schemas import ToolTrace
 from .tools import TOOL_SCHEMAS, ToolContext, execute_tool
 
@@ -83,6 +83,8 @@ async def run_fast_answer(
     *,
     user_email: str | None = None,
     top_k: int = 5,
+    summary: bool = False,
+    max_tokens: int = 512,
 ) -> AgentResult:
     """Single-pass RAG turn: one retrieval + one model call, no tool loop.
 
@@ -108,13 +110,14 @@ async def run_fast_answer(
         for c in chunks
     )
     scope = _scoped_message(message, document_id)
+    system = SUMMARY_SYSTEM_PROMPT if summary else FAST_SYSTEM_PROMPT
     response = await chat_completion(
         [
-            {"role": "system", "content": FAST_SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": f"{scope}\n\nRetrieved context:\n{context}"},
         ],
         temperature=0.2,
-        max_tokens=512,
+        max_tokens=max_tokens,
         timeout=settings.CHAT_TIMEOUT_SECONDS,
         retries=settings.CHAT_TIMEOUT_RETRIES,
     )
@@ -126,12 +129,77 @@ async def run_fast_answer(
     )
 
 
-FAST_SYSTEM_PROMPT = """You answer questions about the user's own uploaded documents using ONLY the retrieved context below.
+FAST_SYSTEM_PROMPT = """You answer questions about the user's own uploaded documents using ONLY the retrieved context below. Write directly for the document's owner in plain, simple words, short paragraphs or a few bullets. Begin your reply with the answer itself.
 
-Hard rules:
-1. Cite every factual claim with the exact tag [REF: <chunk_id>] from the CHUNK_ID values shown. Never invent one.
-2. If the context does not contain the answer, say plainly that the documents do not contain it. Never use general knowledge.
-3. Keep the final answer under 5 sentences unless asked for more detail."""
+Rules: attach the exact tag [REF: <chunk_id>] from the CHUNK_ID values shown to each factual claim, using plain ASCII square brackets, and say nothing about the tags themselves. If the context lacks the answer, say so plainly. Never write about your own process, plans, or sentences — only the final answer, with no preamble about what you are going to do."""
+
+
+SUMMARY_SYSTEM_PROMPT = """You answer from ONLY the retrieved context below, writing directly for the document's owner in plain, simple words. Reply with exactly these three parts, in this order, and nothing else — no preamble, no notes about your process, no placeholders like (same) or (etc); write every fact out fully:
+
+**What it is:** one or two sentences saying what the document is.
+**Key numbers:** bullets with the important amounts, dates, and names.
+**What to do next:** one or two sentences, or Nothing urgent.
+
+Attach the exact tag [REF: <chunk_id>] from the CHUNK_ID values shown to the facts that need one, using plain ASCII square brackets, and say nothing about the tags themselves. If the context lacks the answer, reply with one plain sentence saying so."""
+
+
+async def run_fast_answer_stream(
+    session: AsyncSession,
+    user_id: UUID,
+    message: str,
+    document_id: UUID | None = None,
+    *,
+    user_email: str | None = None,
+    top_k: int = 5,
+    max_tokens: int = 512,
+    summary: bool = False,
+):
+    """Streaming twin of run_fast_answer: same retrieval + prompt, but yields
+    ("token", delta) events live, then a final ("result", AgentResult).
+
+    Lets the UI render words as the model generates them — first token in
+    ~2s — instead of a silent wait for the whole turn.
+    """
+    from typing import AsyncIterator
+
+    async def _gen() -> AsyncIterator[tuple[str, Any]]:
+        ctx = ToolContext(session=session, user_id=user_id, document_id=document_id, user_email=user_email)
+        result, search_ms = await execute_tool(ctx, "search_documents", {"query": message, "top_k": top_k})
+        trace = [ToolTrace(iteration=1, tool_name="search_documents",
+                           arguments={"query": message, "top_k": top_k},
+                           result_summary=_summarize(result), execution_time_ms=search_ms)]
+        chunks = result.get("chunks") or []
+        if not chunks:
+            yield ("result", AgentResult(
+                answer="Your documents do not contain the answer to that question.",
+                tool_trace=trace, iterations=1, seen_chunks=dict(ctx.seen_chunks),
+            ))
+            return
+        context = "\n\n".join(
+            f"[CHUNK_ID: {c['chunk_id']}] ({c.get('filename', '')}, page {c.get('page_number', '?')}):\n{c['content']}"
+            for c in chunks
+        )
+        scope = _scoped_message(message, document_id)
+        system = SUMMARY_SYSTEM_PROMPT if summary else FAST_SYSTEM_PROMPT
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": f"{scope}\n\nRetrieved context:\n{context}"},
+        ]
+        answer = ""
+        async for delta in chat_completion_stream(
+            messages,
+            temperature=0.2,
+            max_tokens=max_tokens,
+            timeout=settings.CHAT_TIMEOUT_SECONDS,
+        ):
+            answer += delta
+            yield ("token", delta)
+        yield ("result", AgentResult(
+            answer=answer.strip() or "I could not produce an answer for that question.",
+            tool_trace=trace, iterations=1, seen_chunks=dict(ctx.seen_chunks),
+        ))
+
+    return _gen()
 
 
 async def run_agent(
