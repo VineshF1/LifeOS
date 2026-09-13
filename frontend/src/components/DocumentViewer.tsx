@@ -53,9 +53,6 @@ export function DocumentViewer({
             <button type="button" className="lx-btn lx-btn-ghost" onClick={onClose}>
               Close
             </button>
-            <button type="button" className="lx-icon-btn" onClick={onClose} aria-label="Close viewer">
-              ×
-            </button>
           </div>
           <div style={{ height: "min(72vh, 640px)", background: "var(--ink-3)" }}>
             <iframe
