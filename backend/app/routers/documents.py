@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,7 +33,7 @@ from ..ingestion import (
 )
 from ..nim import NIMTimeoutError, NIMUnavailableError
 from ..schemas import DocumentListResponse, DocumentOut, ShareCreate, ShareOut, UploadResponse
-from ..security import CurrentUser, get_current_user
+from ..security import CurrentUser, decode_access_token, get_current_user
 from ..security.ratelimit import limit_upload
 from ..services.billing import check_tier_limit, get_tier, require_pro
 from ..services.notifications import create_notification
@@ -139,6 +140,14 @@ async def upload_document(
     started = time.perf_counter()
     document_id = uuid4()
     warnings: list[str] = []
+
+    # Persist raw bytes alongside the async path so the in-app viewer
+    # (GET /documents/{id}/file) works no matter which upload route ran.
+    import os
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    with open(os.path.join(settings.UPLOAD_DIR, f"{document_id}.pdf"), "wb") as fh:
+        fh.write(data)
 
     # Row first, so any later failure still leaves a visible, explainable document.
     await session.execute(
@@ -528,6 +537,68 @@ async def get_document(
     session: AsyncSession = Depends(get_tenant_session_with_email),
 ) -> DocumentOut:
     return await _load_document(session, document_id)
+
+
+@router.get("/{document_id}/file")
+async def view_document_file(
+    document_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_tenant_session_with_email),
+):
+    """Serve the stored PDF inline for the in-app viewer.
+
+    Owner-only via _require_owner (shared recipients get 404, same as a
+    missing document). 404 when the binary is gone (deleted uploads dir,
+    queued async upload not yet stored).
+    """
+    return await _serve_document_file(session, document_id, user.id)
+
+
+@router.get("/{document_id}/file/{filename}")
+async def view_document_file_named(
+    document_id: UUID,
+    filename: str,
+    token: str = Query(..., description="JWT in query (iframes send no headers)."),
+):
+    """Same binary as /file, but the URL ends with the real filename so
+    embedded PDF viewers title the tab with the document's name instead of
+    a blob hash. The filename segment is cosmetic and unchecked; ownership
+    is enforced on document_id exactly like /file."""
+    from ..database import AsyncSessionLocal, set_tenant_context
+
+    try:
+        payload = decode_access_token(token)
+        user_id = UUID(str(payload["sub"]))
+        email = str(payload.get("email", ""))
+    except Exception as exc:  # noqa: BLE001 - bad token is a clean 401
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.") from exc
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await set_tenant_context(session, user_id, email)
+            return await _serve_document_file(session, document_id, user_id)
+
+
+async def _serve_document_file(
+    session: AsyncSession, document_id: UUID, user_id: UUID,
+):
+    import os
+
+    await _require_owner(session, document_id, user_id)
+    document = await _load_document(session, document_id)
+    path = os.path.join(settings.UPLOAD_DIR, f"{document_id}.pdf")
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The stored file is no longer available for this upload. Re-upload the PDF to view it.",
+        )
+    await record_audit(
+        session, user_id, "document_view",
+        output_payload={"document_id": str(document_id)},
+    )
+    return FileResponse(
+        path, media_type="application/pdf", filename=document.filename,
+        content_disposition_type="inline",
+    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

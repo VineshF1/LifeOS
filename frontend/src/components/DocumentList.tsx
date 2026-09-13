@@ -13,20 +13,44 @@ interface DocumentListProps {
   onSelect: (document: DocumentOut) => void;
   onDelete: (document: DocumentOut) => void;
   onShare?: (document: DocumentOut) => void;
+  onView: (document: DocumentOut) => void;
   activeDocumentId: string | null;
+  /** Hide the inline filter row (used when the page renders CategoryPills
+      above the scroll container so edge fades never wash over the pills). */
+  hideFilters?: boolean;
+}
+
+/** Category filter pills, exported so pages can render them outside the
+    scrolling document list. */
+export function CategoryPills({
+  category,
+  onCategoryChange,
+}: {
+  category: string;
+  onCategoryChange: (category: string) => void;
+}) {
+  const filters = ["All", ...CATEGORIES];
+  return (
+    <div className="lx-pills" role="group" aria-label="Filter by category" style={{ marginBottom: "0.8rem" }}>
+      {filters.map((filter) => (
+        <button
+          key={filter}
+          type="button"
+          onClick={() => onCategoryChange(filter)}
+          className={`lx-pill ${category === filter ? "on" : ""}`}
+          aria-pressed={category === filter}
+        >
+          {filter}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function statusClass(status: string): string {
   if (status === "ready") return "lx-badge-green";
   if (status === "needs_review") return "lx-badge-yellow";
   return "lx-badge-blue";
-}
-
-function statusDot(status: string): string {
-  if (status === "ready") return "var(--green)";
-  if (status === "needs_review") return "var(--yellow)";
-  if (status === "failed" || status === "deleted") return "var(--red)";
-  return "var(--accent)";
 }
 
 export function DocumentList({
@@ -37,25 +61,15 @@ export function DocumentList({
   onSelect,
   onDelete,
   onShare,
+  onView,
   activeDocumentId,
+  hideFilters,
 }: DocumentListProps) {
-  const filters = ["All", ...CATEGORIES];
-
   return (
     <div>
-      <div className="lx-pills" role="group" aria-label="Filter by category" style={{ marginBottom: "0.8rem" }}>
-        {filters.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => onCategoryChange(filter)}
-            className={`lx-pill ${category === filter ? "on" : ""}`}
-            aria-pressed={category === filter}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
+      {hideFilters ? null : (
+        <CategoryPills category={category} onCategoryChange={onCategoryChange} />
+      )}
 
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }} aria-label="Loading documents">
@@ -110,18 +124,6 @@ export function DocumentList({
                   }
                 }}
               >
-                <span
-                  aria-hidden
-                  title={`Status: ${document.status.replace("_", " ")}`}
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    marginTop: 7,
-                    flex: "none",
-                    background: statusDot(document.status),
-                  }}
-                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {document.filename}
@@ -137,8 +139,36 @@ export function DocumentList({
                       Due {formatDate(deadline)}
                     </span>
                   ) : null}
-                  <span className={`lx-badge mt-1 ${statusClass(document.status)}`} style={{ marginTop: 6 }}>
-                    {document.status.replace("_", " ")}
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    <span
+                      className={statusClass(document.status) + " lx-badge"}
+                      style={{ border: "1px solid transparent" }}
+                    >
+                      {document.status.replace("_", " ")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onView(document);
+                      }}
+                      aria-label={`View ${document.filename}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        fontSize: "0.72rem",
+                        fontWeight: 650,
+                        padding: "0.18rem 0.55rem",
+                        border: "1px solid var(--outline-soft)",
+                        borderRadius: "var(--r-pill)",
+                        background: "none",
+                        whiteSpace: "nowrap",
+                        color: "var(--accent)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      View
+                    </button>
                   </span>
                 </div>
                 <span className="doc-actions" style={{ display: "flex", gap: 2, flex: "none" }}>

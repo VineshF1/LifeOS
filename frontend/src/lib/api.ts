@@ -238,6 +238,36 @@ export const api = {
     return request<void>(`/documents/${id}`, { method: "DELETE" });
   },
 
+  /** Filename-bearing viewer URL (token in query; iframes send no headers). */
+  documentViewUrl(id: string, filename: string): string | null {
+    const token = getToken();
+    if (!token) return null;
+    return `${API_BASE}/documents/${id}/file/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
+  },
+
+  /** Fetch the stored PDF as an object URL for the in-app viewer. */
+  async documentFileUrl(id: string): Promise<string> {
+    const token = getToken();
+    const response = await fetch(`${API_BASE}/documents/${id}/file`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (response.status === 401) {
+      clearToken();
+      throw new ApiError(401, "Your session expired. Please sign in again.");
+    }
+    if (!response.ok) {
+      let detail = "Could not open this file.";
+      try {
+        const body = await response.json();
+        if (typeof body?.detail === "string") detail = body.detail;
+      } catch {
+        // Blob or empty error body — keep the default message.
+      }
+      throw new ApiError(response.status, detail);
+    }
+    return URL.createObjectURL(await response.blob());
+  },
+
   chat(message: string, documentId?: string | null) {
     return request<ChatResponse>("/chat", {
       method: "POST",

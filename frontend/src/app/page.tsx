@@ -7,7 +7,8 @@ import { ApprovalModal } from "@/components/ApprovalModal";
 import { ChatPane } from "@/components/ChatPane";
 import { DeletionModal } from "@/components/DeletionModal";
 import { ThemeToggle } from "@/components/theme";
-import { DocumentList } from "@/components/DocumentList";
+import { DocumentList, CategoryPills } from "@/components/DocumentList";
+import { DocumentViewer } from "@/components/DocumentViewer";
 import { Dropzone } from "@/components/Dropzone";
 import { AnimatedNumber, GlowCard } from "@/components/primitives";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const notifRef = useRef<HTMLDivElement | null>(null);
   const [shareDocument, setShareDocument] = useState<DocumentOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentOut | null>(null);
+  const [viewTarget, setViewTarget] = useState<{ doc: DocumentOut; url: string } | null>(null);
 
   const signOut = useCallback(() => {
     clearToken();
@@ -219,6 +221,31 @@ export default function DashboardPage() {
     void loadTasks();
   }
 
+  function openViewer(doc: DocumentOut) {
+    const url = api.documentViewUrl(doc.id, doc.filename);
+    if (!url) {
+      signOut();
+      return;
+    }
+    setViewTarget({ doc, url });
+  }
+
+  async function downloadViewing() {
+    if (!viewTarget) return;
+    try {
+      const blobUrl = await api.documentFileUrl(viewTarget.doc.id);
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = viewTarget.doc.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch (err) {
+      setNotice(err instanceof ApiError ? err.message : "Could not download this file.");
+    }
+  }
+
   if (!ready) {
     return (
       <div className="lx-page" style={{ alignItems: "center", justifyContent: "center" }}>
@@ -255,7 +282,7 @@ export default function DashboardPage() {
           <span className="lx-hide-mobile" style={{ color: "var(--ink-2)", fontSize: "0.85rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user?.email}
           </span>
-          <span className={`lx-badge ${user?.subscription_tier === "pro" ? "lx-badge-green" : "lx-badge-muted"}`}>
+          <span className={`lx-badge ${user?.subscription_tier === "pro" ? "lx-badge-gold" : "lx-badge-muted"}`}>
             {user?.subscription_tier === "pro" ? "★ Pro" : "Free"}
           </span>
           <div style={{ position: "relative" }} ref={notifRef}>
@@ -439,17 +466,18 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="lx-card-body">
+                  <CategoryPills category={category} onCategoryChange={setCategory} />
                   <div className="lx-scrollbareless" style={{ maxHeight: 420 }}>
                     <DocumentList
                       documents={filteredDocuments}
                       loading={documentsLoading}
                       category={category}
                       onCategoryChange={setCategory}
-                      onSelect={(doc) =>
-                        setScopeDocumentId(doc.id === scopeDocumentId ? null : doc.id)
-                      }
+                      hideFilters
+                      onSelect={(doc) => openViewer(doc)}
                       onDelete={(doc) => setDeleteTarget(doc)}
                       onShare={(doc) => setShareDocument(doc)}
+                      onView={(doc) => openViewer(doc)}
                       activeDocumentId={scopeDocumentId}
                     />
                   </div>
@@ -586,6 +614,15 @@ export default function DashboardPage() {
             setDeleteTarget(null);
             void loadTasks();
           }}
+        />
+      ) : null}
+
+      {viewTarget ? (
+        <DocumentViewer
+          filename={viewTarget.doc.filename}
+          url={viewTarget.url}
+          onDownload={() => void downloadViewing()}
+          onClose={() => setViewTarget(null)}
         />
       ) : null}
     </div>
