@@ -1,12 +1,12 @@
-# LifeOS Agent — Your Personal Document Assistant
+# Prova — Your Personal Document Assistant
 
-> LifeOS reads your bills and policies, answers questions with proof, compares documents, and asks before doing anything important.
+> Prova reads your bills and policies, answers questions with proof, compares documents, and asks before doing anything important.
 
-Adult life runs on paperwork — bills, renewals, rental agreements — with the dates that matter buried inside PDFs. LifeOS is a private assistant that reads those documents, remembers every deadline, and answers questions like "when does my car insurance expire?" while pointing at the exact page it got the answer from.
+Adult life runs on paperwork — bills, renewals, rental agreements — with the dates that matter buried inside PDFs. Prova is a private assistant that reads those documents, remembers every deadline, and answers questions like "when does my car insurance expire?" while pointing at the exact page it got the answer from.
 
 ## Overview
 
-Upload a PDF and LifeOS reads every page, files away the key facts (sender, amount, due date), and drafts a task if there's a deadline. Ask a question and it looks up your documents — checking each file step by step, live, for harder comparisons — then answers with a source chip after every fact: filename, page, exact quote.
+Upload a PDF and Prova reads every page, files away the key facts (sender, amount, due date), and drafts a task if there's a deadline. Ask a question and it looks up your documents — checking each file step by step, live, for harder comparisons — then answers with a source chip after every fact: filename, page, exact quote.
 
 When it wants to *do* something rather than answer, it pauses and shows you an approval card. One tap to confirm or reject. Everything stays private to your account; sharing only happens when you share by email.
 
@@ -58,8 +58,7 @@ What Phase 3 adds on top of the Phase 2 product (this repo):
   actions, binary, `hard_delete` audit) and full account purge (`POST /api/user/purge-account`,
   both LangGraph thread formats), plus `GET /api/privacy/transparency-log`.
 - **Packaging + docs** — `docker-compose.yml` (API ×4, worker, Redis 7, frontend,
-  `shared_uploads` volume), `docs/ARCHITECTURE.md`, `docs/PRIVACY_POLICY.md`, `docs/RUNBOOK.md`,
-  frontend `/chat` (rate-limit toasts), `/settings` (transparency + purge),
+  `shared_uploads` volume), frontend `/chat` (rate-limit toasts), `/settings` (transparency + purge),
   `ProcessingCard` queue stepper, two-step `DeletionModal`.
 - **Fast chat** — `CHAT_MODEL` (nano-omni 30B) + single-pass fast lane (<10s) for everything
   except comparison/action intent, which escalate to the 120B agent loop.
@@ -72,6 +71,28 @@ What Phase 3 adds on top of the Phase 2 product (this repo):
   webhook secret optional — checkout opens without it, only the post-payment tier flip
   needs it). With no keys at all it falls back to demo-mode instant upgrade.
 - Sync uploads insert transient `processing` status — included in `chk_documents_status`.
+
+## Benchmark Results
+
+Observed on Docker Compose + Neon + Redis 7 + NVIDIA NIM (live run 2026-09-11;
+chat tuning 2026-09-13). Small PDFs (2 chunks) — NIM latency moves with server
+load, so read these as observed numbers, not guarantees.
+
+| Operation | Measured | Notes |
+|-----------|----------|-------|
+| Async ingestion (upload-async → `ready`) | ~18 s (17.6 s) | Embeddings 200, extraction 200, 2 chunks, `ingestion_complete` SSE |
+| Cited chat turn (120B, single-doc) | ~5 s | Correct answer + page-1 citation chip |
+| Fast-lane chat (single retrieval + short call) | 6–7 s (7.4 s / 6.2 s) | Default path except comparison/action intent |
+| Summary ("explain this document") | ~11 s (10.9 s) | Templated sections, citations, leak guards |
+| Comparison (multi-doc agent loop) | ~26 s (25.6 s) | 3 scoped searches + cited matrix |
+| Stream first token | ~2 s | Tokens render live; citations resolve on final event |
+| Cold login (idle Neon wake) | 3.4 s | Warm logins are faster |
+| Rate-limit trip | 429 + `Retry-After` | Auth 5/min verified live |
+| Delete → transparency log | 204, 0 docs / 0 chunks / 5 audits | Full cascade verified |
+
+Tuning rejections (same key, measured): reasoning nano-30B thinks ~45–50 s per
+turn; Lightning-30B answers fast (~16 s) but poorly; nano-3-30B and kimi-k2.6
+are not entitled on this key (404). Chat stays on the 120B.
 
 ## Architecture
 
@@ -153,7 +174,7 @@ Tier rules live in the API, not the database: free owners get 403 on share creat
 ## Project Structure
 
 ```text
-LifeOS-V2/
+Prova/
 ├── backend/
 │   ├── Dockerfile               # init_db + uvicorn on $PORT, /health check
 │   ├── app/

@@ -1,6 +1,6 @@
 # DEPLOY — Prova (Phase 3)
 
-Repo is pushed (`main` on `VineshF1/LifeOS`). Pushing to the cloud needs your
+Repo is pushed (`main`). Pushing to the cloud needs your
 accounts — everything below is exact.
 
 ## 0. What goes where
@@ -15,7 +15,7 @@ accounts — everything below is exact.
 
 ## 1. Backend + worker + Redis — Render
 
-1. dashboard.render.com → New → Blueprint → select the `LifeOS` repo.
+1. dashboard.render.com → New → Blueprint → select the repo.
    Creates `lifeos-api` (health check `/api/health/liveness`) and `lifeos-worker`.
 2. Dashboard → New → Key Value → create, copy its INTERNAL URL
    (`redis://red-xxx:6379`) → paste as `REDIS_URL` on both services.
@@ -40,7 +40,7 @@ CORS_ORIGINS=https://<your-vercel-app>.vercel.app        (API service)
 
 ## 2. Frontend — Vercel
 
-1. vercel.com → Add New → Project → import the `LifeOS` repo.
+1. vercel.com → Add New → Project → import the repo.
 2. Root Directory: `frontend`. Framework preset: Next.js (auto).
 3. Env var: `NEXT_PUBLIC_API_BASE_URL=https://<your-render-api>.onrender.com`
 4. Deploy. Put the app URL back into Render's `FRONTEND_URL` / `CORS_ORIGINS`,
