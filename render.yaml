@@ -1,4 +1,4 @@
-# Render deployment (Phase 3) — Blueprint: `render blueprint launch`
+# Render deployment — Blueprint: `render blueprint launch`
 #
 # Backend API (Render web service, Docker, Python 3.11):
 #   Dockerfile: backend/Dockerfile (runs `python -m app.init_db` then uvicorn
