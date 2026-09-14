@@ -187,6 +187,10 @@ Prova/
 └── .gitignore
 ```
 
+
+
 > For running this project, see **RUN.md** — Docker quick start, manual dev, health checks, and curl demo.
+
+
 
 Built with ❤️
