@@ -26,10 +26,6 @@ Nothing important happens without you. Actions that touch the outside world sit 
 
 ## Benchmark Results
 
-Tested on Docker Compose + Neon + Redis 7 + NVIDIA NIM. Small PDFs (2 chunks). NIM latency varies with server load, so treat these as what I saw, not promises.
-
-Live run: 2026-09-11. Chat tuning: 2026-09-13.
-
 | Operation | Measured | Notes |
 |-----------|----------|-------|
 | Async ingestion (upload-async → `ready`) | ~18 s (17.6 s) | Embed + extract 200 each, 2 chunks, `ingestion_complete` SSE |
@@ -42,51 +38,46 @@ Live run: 2026-09-11. Chat tuning: 2026-09-13.
 | Rate-limit trip | 429 + `Retry-After` | Auth 5/min verified live |
 | Delete → transparency log | 204, 0 docs / 0 chunks / 5 audits | Full cascade verified |
 
-Things I tried and dropped: reasoning `nano-30B` takes ~45–50 s per turn; `Lightning-30B` is fast (~16 s) but answers poorly; `kimi-k2.6` and `nano-3-30B` aren’t entitled on this NIM key (404). So chat stays on the 120B model.
-
 ## Architecture
 
 ```mermaid
 flowchart TB
-    classDef fe fill:#1e1b4b,color:#e0e7ff,stroke:#6366f1,stroke-width:2px
-    classDef be fill:#1c1917,color:#fef3c7,stroke:#f59e0b,stroke-width:2px
-    classDef llm fill:#052e16,color:#dcfce7,stroke:#22c55e,stroke-width:2px
-    classDef store fill:#172554,color:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef ingest fill:#172554,stroke:#3b82f6,color:#dbeafe
+    classDef query fill:#052e16,stroke:#22c55e,color:#dcfce7
+    classDef trust fill:#451a03,stroke:#f59e0b,color:#fef3c7
 
-    subgraph INGEST["Ingestion Pipeline"]
-        A["<b>PDF File</b><br/>≤25 MB, %PDF-"] --> B["<b>PyMuPDF (fitz)</b><br/>per-page text + widgets"]
-        B --> C["<b>Recursive Chunker</b><br/>400 tok / 60 overlap"]
-        C --> D["<b>NIM Embed</b><br/>nemotron-3-embed-1b<br/>2048 dim"]
-        D --> E[(" <b>Neon + pgvector</b><br/>halfvec(2048) HNSW ")]
-        B --> F["<b>NIM Extract</b><br/>nemotron-3-super-120b<br/>JSON-schema + fallback"]
-        F --> E
-        F --> G[(" <b>tasks</b><br/>auto-draft ")]
-        F --> H[(" <b>notifications</b><br/>deadline + system ")]
+    subgraph INGEST [Ingestion]
+        A[PDF ≤25MB] --> B[PyMuPDF]
+        B --> C[Chunk 400t/60 + Embed 2048]
+        B --> D[Extract JSON]
+        C --> E[(Neon + pgvector)]
+        D --> E
+        D --> F[tasks + notifications]
+    end
+    subgraph QUERY [Query]
+        G[Question] --> H[FastAPI + LangGraph]
+        H --> I[Tools: search / query / synthesize]
+        I --> E
+        E --> J[Tool output]
+        J --> H
+        H --> K[NIM 120B]
+        K --> L[Cited Answer]
+    end
+    subgraph TRUST [Approvals & Sharing]
+        I --> M[pending_actions]
+        M --> N[Approval card]
+        N --> H
+        O[Share by email] --> P[document_shares]
+        P --> E
     end
 
-    subgraph QUERY["Agentic Query Pipeline"]
-        I["<b>User Question</b>"] --> J["<b>FastAPI</b><br/>/chat or /chat/stream"]
-        J --> K["<b>LangGraph</b><br/>intent → tools → approval gate<br/>Postgres checkpointer"]
-        K --> L["<b>Tools</b><br/>search / query / synthesize<br/>propose / create / calendar"]
-        L --> E
-        E --> M["<b>Tool Output</b><br/>[CHUNK_ID] blocks"]
-        M --> K
-        K --> N["<b>NIM LLM</b><br/>+ citation prompt"]
-        N --> O["<b>Cited Answer</b><br/>[Source: file, Page: N]<br/>SSE progress → answer"]
-    end
+    class A,B,C,D,E,F ingest
+    class G,H,I,J,K,L query
+    class M,N,O,P trust
 
-    subgraph TRUST["Human-in-the-Loop & Sharing"]
-        L --> P[(" <b>pending_actions</b><br/>AWAITING_HUMAN_APPROVAL ")]
-        P --> Q["<b>ApprovalModal</b><br/>approve → execute<br/>reject → logged"]
-        Q --> K
-        R["<b>ShareDialog</b><br/>email + view/editor"] --> S[(" <b>document_shares</b><br/>owner-OR-shared RLS ")]
-        S --> E
-    end
-
-    class A,I fe
-    class B,C,F,J,K,L,Q,R be
-    class D,N llm
-    class E,G,H,M,O,P,S store
+    style INGEST fill:#0f172a,stroke:#3b82f6,stroke-width:2px
+    style QUERY fill:#022c22,stroke:#22c55e,stroke-width:2px
+    style TRUST fill:#431407,stroke:#f59e0b,stroke-width:2px
 ```
 
 ### How it runs
@@ -116,64 +107,34 @@ How the pieces are deployed and scaled:
                            └────────────────────┘      └──────────────────┘
 ```
 
-Workers scale separately (`docker compose up --scale celery-worker=3`). Only API (`:8000`) and frontend (`:3000`) expose host ports. Chat streams in-process over SSE — it never goes through Celery or Redis.
-
-A few details that matter: uploads return 202 with `document_id` + `job_id` and stream progress over Redis Pub/Sub → SSE. If a worker fails after retries, the job goes to `celery_dlq` where `handle_poison_pill_dlq` marks the doc `failed` and pushes an alert. Migrations run at boot under `pg_advisory_lock` with a 4-second bounded timeout so restarts don’t hang.
-
-## Live-run notes (verified 2026-09-11, Docker + Neon + Redis + NIM)
-
-- `docker compose up --build -d` brings up API `:8000` and frontend `:3000`. Compose reads the repo-root `.env` (billing keys live there, not `backend/.env`).
-- Billing uses Razorpay test keys (Key ID + Key Secret + Plan ID). Webhook secret is optional — checkout still opens, only the post-payment tier flip needs it. No keys at all? It falls back to demo-mode instant upgrade.
-- Sync uploads briefly show `processing` — that status is expected in `chk_documents_status`.
-
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 15.1.6 (App Router, React 19) + TypeScript + Tailwind + Tabler.io (`@tabler/core` 1.5.1, `@tabler/icons-react` 3.46.0) |
-| Backend | Python 3.11 + FastAPI 0.115.6 + Uvicorn + SQLAlchemy[asyncio] + asyncpg |
-| AI | NVIDIA NIM `nemotron-3-super-120b-a12b` + `nemotron-3-embed-1b` (2048) via `openai.AsyncOpenAI` + `httpx` (15 s default; 30 s + 1 retry for chat/extraction) |
-| Orchestration | LangGraph 0.2.59 + `AsyncPostgresSaver` (same Neon DB; falls back to built-in loop) + `langchain-openai` |
-| Data | Neon Serverless Postgres + `pgvector` (`halfvec(2048)` HNSW `halfvec_cosine_ops`) + RLS `FORCE` (id + email) |
-| Parsing | PyMuPDF (`fitz`) — sorted reading order, block fallback, AcroForm widgets, scanned-page detection; `page_number` kept for citations |
-| Auth | Self-managed JWT (`PyJWT` + `bcrypt` 72B cap) carrying id + email for shared-access RLS |
-| Billing | Razorpay 1.4.2 Test Mode (`rzp_test_*`); `/webhook` verifies HMAC signature, needs `RAZORPAY_WEBHOOK_SECRET`; demo-mode flip when keys absent |
-| Realtime | `sse-starlette` — `POST /chat/stream` progress frames + `GET /notifications/stream` live feed |
-| Deploy | Vercel (frontend) · Render / Docker (backend, `render.yaml` Blueprint) · Neon (db) |
-
-## Data Model
-
-| Table | Purpose | RLS |
-|-------|---------|-----|
-| `users` | self-managed identity + `subscription_tier` (`free`/`pro`), `razorpay_customer_id`, `document_count` | — (login must read before tenant ctx) |
-| `documents` | `filename`, `category`, `status` (`ready`/`needs_review`), `raw_text`, `metadata JSONB`, `has_actionable_deadline` | `FORCE`, owner-OR-shared |
-| `document_chunks` | `document_id`, `user_id`, `filename`, `page_number`, `chunk_index`, `content`, `embedding halfvec(2048)` | `FORCE`, owner-OR-shared |
-| `document_shares` | `document_id`, `owner_id`, `shared_with_email`, `permission` (`view`/`editor`) | `FORCE`, owner-OR-recipient |
-| `pending_actions` | `action_type`, `payload JSONB`, `status` (`pending`/`approved`/`rejected`/`expired`), `expires_at` (+24 h) | `FORCE` |
-| `notifications` | `title`, `message`, `type` (`deadline`/`system`/`sharing`), `is_read`, `due_date` | `FORCE` |
-| `tasks` | `title`, `due_date DATE`, `status`, `document_id ON DELETE CASCADE` | `FORCE` |
-| `audit_logs` | `action_type`, `tool_name`, `input/output JSONB`, `execution_time_ms` | `FORCE` |
-
-Indexes on `user_id`, `metadata->>'action_deadline'`, `category`, `document_shares(shared_with_email)`, `pending_actions(status)`, unread notifications, and `USING hnsw ((embedding::halfvec(2048)) halfvec_cosine_ops)`.
-
-Tier rules live in the API, not the database: free owners get 403 past 5 uploads and on share creation; `synthesize_documents`, calendar export, and approvals are Pro-only.
+| Area | Details |
+|------|---------|
+| Frontend | Next.js 15.1.6 (App Router), React 19, TypeScript, Tailwind CSS |
+| Backend | Python 3.11, FastAPI 0.115.6, Uvicorn, SQLAlchemy (async) + asyncpg — async API and Postgres access |
+| AI | NVIDIA NIM — `nemotron-3-super-120B` for chat/tools + `nemotron-3-embed-1b` (2048-dim) for embeddings — via `openai.AsyncOpenAI`; `httpx` 15s → 30s + 1 retry |
+| Orchestration | LangGraph 0.2.59 + `AsyncPostgresSaver` on Neon — handles approval pause/resume; falls back to plain loop if checkpoint table missing |
+| Database | Neon Serverless Postgres + `pgvector` `halfvec(2048)` HNSW — one DB for data + vectors; RLS `FORCE` with dual `id` + `email` for tenant isolation |
+| Parsing | PyMuPDF (`fitz`) — extracts text page by page, keeps order, reads form widgets, flags scanned images; saves `page_number` for citations |
+| Auth | Self-managed JWT (`PyJWT` + `bcrypt`) — token carries `id` + `email` so RLS can allow owner OR shared users |
+| Billing | Razorpay 1.4.2 Test Mode (`rzp_test_*`) — checkout + HMAC webhook; flips to demo mode if keys missing |
+| Realtime | `sse-starlette` — streams chat and notifications over SSE (`POST /chat/stream`, `GET /notifications/stream`) |
+| Deploy | Vercel (frontend), Render + Docker (`render.yaml` Blueprint), Neon (DB) — no cluster to manage |
 
 ## Technical Decisions Log
 
-These are the calls I made under tight constraints: one Neon DB, NIM credits, Render’s 4-worker limit, and Razorpay for India.
-
-| Decision | Alternatives | Trade-off | Why this |
-|---|---|---|---|
-| Neon + `pgvector` `halfvec(2048)` HNSW | Pinecone / Qdrant / full `vector(2048)` | `halfvec` halves memory/storage vs `vector`; HNSW is <10 ms ANN but heavier to build than IVFFlat; no extra service to run | One DB for everything, fits Neon’s 10-connection pooled budget (`pool_size=5, max_overflow=5`). IVF would need re-tuning as data grows. |
-| NVIDIA NIM `nemotron-3-super-120B` + `nemotron-3-embed-1b` | OpenAI GPT-4o + `text-embedding-3-large` | NIM is cheaper on this credit and 2048-dim; ~5 s cited answers / ~26 s comparisons (measured) vs OpenAI’s lower variance but USD billing and 3072-dim | Credit was already entitled, single `AsyncOpenAI` client, and we fallback to `needs_review` instead of failing when the model is down. |
-| LangGraph `AsyncPostgresSaver` + fallback loop | Plain loop / Temporal / Step Functions | Graph gives interrupt → approve → resume with durable checkpoints; fallback loop means approvals still work if the checkpoint table isn’t there | Approvals must survive restarts (24 h expiry, audit). Reuses Neon, no new infra like Temporal. |
-| Celery + Redis 7 (`document_pipeline` + `celery_dlq`) | RQ / BullMQ / SQS | Celery gives bounded concurrency, `--max-tasks-per-child=50`, and a real DLQ; heavier than RQ and needs Redis | Need 2→4→8 s backoff, poison-pill isolation (`handle_poison_pill_dlq`), and stage-boundary cancellation — RQ doesn’t have per-queue max-tasks controls. |
-| PyMuPDF (`fitz`) | pdfminer.six / pypdf | PyMuPDF keeps reading order, AcroForm widgets, and flags scanned pages; it’s a native dep vs pure-Python | Citations need exact `page_number`; scanned PDFs should explain instead of silently dropping text. |
-| Self-managed JWT (dual GUC `id+email`) | Clerk / Auth0 / Supabase Auth | Own JWT carries both `app.current_user_id` and `email` for RLS owner-OR-shared; no vendor lock, but we own rotation | Sharing needs `shared_with_email` in RLS — external auth wouldn’t propagate that without custom claims. |
-| `RLS FORCE` on every table | App-layer `WHERE user_id=` | DB enforces tenant isolation so a missed filter can’t leak; every session (including Celery `NullPool` workers) must set GUCs | Security in the DB, not the app. Split `audit_logs` policies allow system/DLQ rows with NULL tenant. |
-| `sse-starlette` (SSE) | WebSockets / polling | SSE is one-way, works behind Render/Vercel proxies, auto-reconnects; no bidirectional overhead | Chat progress and notifications are server-push only. Tokens stream live, citations settle on the final event. |
-| Razorpay Test Mode + HMAC webhook | Stripe | Razorpay supports UPI/cards and ₹99 plans natively; webhook fails closed if HMAC doesn’t match | India market; demo-mode flip when keys are absent keeps local dev friction at zero. |
-| Render Blueprint + `pg_advisory_lock` + Vercel + Neon pooler `:6543` | Kubernetes / ECS / self-hosted Postgres | Blueprint gives 4× API workers; `/app/uploads` is ephemeral on redeploy; pooler caps at 10 conns | Minimal ops. Advisory lock with 4 s timeout means migrations don’t hang boot. Add a Render Disk on `/app/uploads` if redeploys annoy you. |
+| Decision | Alternatives | Why |
+|---|---|---|
+| Neon + `pgvector` `halfvec(2048)` HNSW | Pinecone / Qdrant | One database for data and vectors. `halfvec` uses half the memory, HNSW is fast at our scale. No extra service to pay for or run, and it fits Neon's 10-connection pooled limit. |
+| NIM `120B` + `embed-1b` | OpenAI | We already have NIM credits. Cheaper for India, and if it's down we mark docs `needs_review` instead of failing the upload. |
+| LangGraph + `AsyncPostgresSaver` | Plain loop / Temporal | Approvals must survive restarts. Graph checkpoints in Postgres let us pause, wait for your tap, then resume. If the table isn't there, the plain loop still works. |
+| Celery + Redis (`document_pipeline` + `celery_dlq`) | RQ / SQS | Ingestion is slow. Celery lets us cap concurrency, retry with backoff, and isolate bad files in a real DLQ. |
+| PyMuPDF | pdfminer / pypdf | Citations need exact page numbers. PyMuPDF keeps reading order, reads widgets, and tells us if a page is just a scanned image. |
+| Self-managed JWT (dual GUC) | Clerk / Auth0 | Sharing is by email. Our JWT carries both `id` and `email` so RLS can check owner OR shared recipient without an external auth service. |
+| `RLS FORCE` + SSE | App filters / WebSockets | RLS in the DB guarantees isolation even if app code forgets a filter. SSE is one-way, works behind Render/Vercel proxies, and is enough for streaming. |
+| Razorpay + HMAC webhook | Stripe | UPI and cards matter in India. Webhook checks HMAC and fails closed. No keys → demo mode so local dev has no friction. |
+| Render + Vercel + Neon pooler | K8s / ECS | No cluster to manage. Blueprint gives 4 API workers, `pg_advisory_lock` stops migrations from hanging boot, pooler keeps us under 10 connections. |
 
 ## Project Structure
 
@@ -226,37 +187,6 @@ Prova/
 └── .gitignore
 ```
 
-## Try it
-
-**Structured (via `query_structured_data`)**
-- Which policies expire next month?
-- List my utility bills due before 2026-10-01.
-- Show all Vehicle documents from AutoCare Motors.
-
-**Semantic (via `search_documents` + citation)**
-- When does my car insurance expire? — should cite the policy Page 1.
-- What does my rental agreement say about the deposit?
-- What are the terms for vehicle service invoice INV-2026-8844?
-
-**Comparative (via `synthesize_documents`, Pro — streams progress)**
-- Does my home insurance cover the water damage on this repair quote?
-- Compare the renewal terms across my two insurance policies.
-
-**Action (via `create_task` / `propose_task_action`)**
-- Create a task to renew my insurance on 2026-10-10.
-- Remind me to pay the electricity bill by Friday — drafts an approval card first.
-
-## Run locally
-
-| Component | Local URL | How |
-|-----------|-----------|-----|
-| Frontend | `http://localhost:3002` | `npm run dev -- --port 3002` (Next 15.1.6) |
-| Backend | `http://127.0.0.1:8002` | `uvicorn app.main:app --host 127.0.0.1 --port 8002` (`/docs` for Swagger) |
-
-Production: Vercel serves `frontend/` with `NEXT_PUBLIC_API_BASE_URL` pointing at Render, where `render.yaml` runs `backend/Dockerfile` (migrations on boot, `/health` checks) against Neon.
-
-Without Razorpay keys, billing runs in demo mode — checkout flips the tier instantly with the same audit trail. Live mode needs the webhook `POST /billing/webhook` for `subscription.activated` + `subscription.charged` and `RAZORPAY_WEBHOOK_SECRET`.
-
-## Author
+> For running this project, see **RUN.md** — Docker quick start, manual dev, health checks, and curl demo.
 
 Built with ❤️
