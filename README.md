@@ -171,6 +171,25 @@ Indexes: `user_id`, `metadata->>'action_deadline'`, `category`, `document_shares
 
 Tier rules live in the API, not the database: free owners get 403 on share creation and past 5 uploads; `synthesize_documents`, calendar export, and approvals UI are Pro-gated.
 
+## Technical Decisions Log
+
+Trade-offs made under constraints: single Neon DB, NVIDIA NIM credit, Render 4-worker limit, and Indian billing (Razorpay).
+
+| Decision | Alternatives | Trade-off | Why this |
+|---|---|---|---|
+| Neon + `pgvector` `halfvec(2048)` HNSW | Pinecone / Qdrant / `vector(2048)` | `halfvec` halves memory/storage vs `vector`; HNSW gives <10 ms ANN but higher build cost than IVFFlat; no extra vector service to operate | One DB for transactional + vector, stays inside Neon 10-conn pooled budget (`pool_size=5,max_overflow=5`). IVF would need retuning per data size. |
+| NVIDIA NIM `nemotron-3-super-120B` + `nemotron-3-embed-1b` | OpenAI GPT-4o + `text-embedding-3-large` | NIM is cheaper/credit-bounded and 2048-dim; latency ~5 s cited / ~26 s comparison (measured) vs OpenAI lower variance but USD billing and 3072-dim | Credit already entitled; token-for-token cheaper for India, single `AsyncOpenAI` client. Fallback is local `needs_review` not vendor lock. |
+| LangGraph `AsyncPostgresSaver` + fallback loop | Pure loop / Temporal / Step Functions | Graph gives interrupt→approve→resume with durable checkpoint; fallback loop avoids hard dep on checkpoint table | Approvals must survive restarts (24 h expiry, audit). PostgresSaver reuses Neon; no extra infra vs Temporal. |
+| Celery + Redis 7 (`document_pipeline` + `celery_dlq`) | RQ / BullMQ / SQS | Celery gives bounded concurrency, `--max-tasks-per-child=50`, real DLQ dispatch; heavier than RQ, needs Redis | Need backoff retries (2→4→8 s), poison-pill isolation (`handle_poison_pill_dlq`), and stage-boundary cancellation — RQ lacks per-queue max-tasks controls. |
+| PyMuPDF (`fitz`) | pdfminer.six / pypdf | PyMuPDF preserves reading order, AcroForm widgets, scanned-page flag; native dep vs pure-Python | Citations need exact `page_number`; scanned detection must fail gracefully, not silently drop text. |
+| Self-managed JWT (`PyJWT` + `bcrypt`, dual GUC `id+email`) | Clerk / Auth0 / Supabase Auth | Own JWT carries both `app.current_user_id`+`email` for `RLS FORCE` owner-OR-shared; no vendor lock, but we own rotation | Sharing requires email-based RLS — external auth wouldn't propagate `shared_with_email` without custom claims. |
+| `RLS FORCE` on every table | App-layer `WHERE user_id=` | DB-enforced tenant isolation closes missed-filter bugs; requires setting GUC on every session (incl. Celery `NullPool`) | Security boundary in DB, not app. Split `audit_logs` SELECT/INSERT policies allow system/DLQ rows with NULL tenant. |
+| `sse-starlette` (SSE) | WebSockets / polling | SSE is one-way, works behind Render/Vercel proxies, auto-reconnects; no bidirectional overhead | Chat progress (`POST /chat/stream`) and `GET /notifications/live` are server-push only. Tokens stream live, citations resolve on final event. |
+| Razorpay Test Mode → live HMAC webhook | Stripe | Razorpay supports UPI/cards + ₹99 plan natively; webhook HMAC is fail-closed if secret mismatched | Indian market; demo-mode flip when keys absent keeps dev friction zero. |
+| Render (`render.yaml` Blueprint, `pg_advisory_lock` migrations) + Vercel + Neon pooler `:6543` | Kubernetes / ECS / self-hosted PG | Blueprint gives 4× API workers + disk-ephemeral warning (`/app/uploads` wipes on deploy); pooler caps at 10 conns | Minimal ops, migrations serialized by advisory lock with 4 s bounded timeout so boot never hangs. |
+
+Rejected tunings are logged in Benchmark Results: reasoning `nano-30B` (~45 s/turn) and `Lightning-30B` (fast but poor) were measured and discarded; chat stays on 120B.
+
 ## Project Structure
 
 ```text
@@ -219,7 +238,6 @@ Prova/
 ├── render.yaml                  # Render Blueprint (Docker web service + env vars)
 ├── README.md
 ├── RUN.md
-├── DEPLOY.md                    # GitHub → Render → Vercel → Razorpay webhook steps
 └── .gitignore
 ```
 
@@ -254,7 +272,7 @@ Production: Vercel serves `frontend/` with `NEXT_PUBLIC_API_BASE_URL` pointing a
 `render.yaml` Blueprint runs `backend/Dockerfile` (migrations on boot, `/health` checks) against Neon.
 Without Razorpay keys billing runs in demo mode — checkout flips the tier instantly with the same audit trail.
 Live mode additionally requires the Dashboard webhook (`POST /billing/webhook` for
-`subscription.activated` + `subscription.charged`) and `RAZORPAY_WEBHOOK_SECRET`; full steps in `DEPLOY.md`.
+`subscription.activated` + `subscription.charged`) and `RAZORPAY_WEBHOOK_SECRET`.
 
 ## Author
 
