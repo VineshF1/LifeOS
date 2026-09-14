@@ -1,98 +1,48 @@
 # Prova — Your Personal Document Assistant
 
-> Prova reads your bills and policies, answers questions with proof, compares documents, and asks before doing anything important.
+> Upload your bills, policies, and leases. Ask anything. Get answers with the exact page they came from.
 
-Adult life runs on paperwork — bills, renewals, rental agreements — with the dates that matter buried inside PDFs. Prova is a private assistant that reads those documents, remembers every deadline, and answers questions like "when does my car insurance expire?" while pointing at the exact page it got the answer from.
+Prova is a private document assistant. It reads your PDFs, remembers dates and amounts, and answers questions like “when does my car insurance expire?” with a source chip that points to the file, page, and quote. If it needs to do something for you — create a task, share a document — it asks first.
+
+I built it because paperwork is where life hides deadlines. Prova keeps them where you can see them.
 
 ## Overview
 
-Upload a PDF and Prova reads every page, files away the key facts (sender, amount, due date), and drafts a task if there's a deadline. Ask a question and it looks up your documents — checking each file step by step, live, for harder comparisons — then answers with a source chip after every fact: filename, page, exact quote.
+Drop a PDF in. Prova pulls the text page by page, chunks it, embeds it, and files away the facts (sender, amount, due date). If there’s a deadline, it drafts a task.
 
-When it wants to *do* something rather than answer, it pauses and shows you an approval card. One tap to confirm or reject. Everything stays private to your account; sharing only happens when you share by email.
+Ask a question and it looks up your own documents first. Simple questions get a direct answer with citations. Harder ones that span multiple files run as a visible stream — “checked your policy… comparing against the quote…” — so you see progress instead of staring at a spinner. Every fact comes with `[Source: filename, Page N]` that you can click.
+
+Nothing important happens without you. Actions that touch the outside world sit as approval cards on your dashboard. Approve or reject in one tap. Everything is private to your account; sharing only happens if you share by email.
 
 ## Features
 
-- **An agent that looks things up before answering** — instead of following one fixed script, it decides on its own what to search for, checks its sources, and only then answers. If your documents don't contain the answer, it says so instead of making something up.
-- **Answers with proof attached** — every fact comes with a clickable source chip showing the document, page, and exact quote. A wrong citation is impossible by design: the app only accepts references to text it actually showed the AI.
-- **Compares documents, out loud** — Pro questions spanning two files run as a visible step-by-step stream ("checked your policy… comparing against the quote…") instead of a long silent wait that hosting platforms would kill halfway.
-- **Nothing important happens without you** — external actions pause as approval cards on the dashboard. One tap to approve or reject; the decision is logged either way.
-- **Deadlines chase you, gently** — documents expiring within 30 days raise alerts in the notification center with a live feed, and uploads with due dates still draft tasks automatically.
-- **Share with family, charge fairly** — share a lease or warranty by email with view or editor access (Pro). Free covers 5 documents; Pro (₹99/mo) unlocks unlimited uploads, comparisons, approvals, calendar exports, and sharing — upgrade via Razorpay or one tap in demo mode.
-- **Survives bad days gracefully** — if the AI service is slow or down, your upload is still saved and searchable; the document is simply marked for review rather than breaking the whole page. Scanned-image PDFs get a clear explanation instead of a silent failure.
-
-## Phase 2 implementations
-
-What Phase 2 adds on top of the Phase 1 MVP:
-
-- **Cross-document reasoning** — `synthesize_documents` scatters one scoped search per file and gathers a cited comparison matrix, streamed over SSE (`POST /chat/stream`) so long syntheses show live progress instead of timing out.
-- **Human-in-the-loop approvals** — `propose_task_action` drafts to `pending_actions`; the dashboard's approval card executes on approve, logs on reject, expires after 24 h. A LangGraph state machine (`AsyncPostgresSaver`) orchestrates the pause/resume; the built-in loop remains as fallback.
-- **Document sharing** — email-based shares with view/editor permission, owner-OR-shared RLS on documents and chunks, recipient notifications.
-- **SaaS tiers + billing** — free (5 docs, single-doc Q&A) vs Pro (₹99/mo: unlimited, synthesis, approvals, calendar, sharing); Razorpay checkout + webhook, demo-mode instant flip without keys.
-- **Notification center** — 30-day deadline sync, upload/share/system alerts, live SSE feed, unread badge.
-- **Calendar export** — one-tap `.ics` download per task (Pro).
-- **Cloud-ready** — `render.yaml` Blueprint + Dockerfile (migrations on boot), Vercel frontend config.
-
-## Phase 3 implementations
-
-What Phase 3 adds on top of the Phase 2 product (this repo):
-
-- **Async ingestion queue** — `POST /documents/upload-async` returns **202 Accepted**
-  with `document_id` + `job_id`; Celery workers (`document_pipeline` queue, bounded
-  concurrency, `--max-tasks-per-child=50`) run parse → extract → chunk → embed with
-  stage-boundary cancellation checks. Progress streams over Redis Pub/Sub → SSE
-  (`GET /notifications/live`); the sync `/upload` endpoint stays as the no-Redis fallback.
-- **Real Dead-Letter Queue** — failures after max retries dispatch to `celery_dlq`
-  (`handle_poison_pill_dlq` marks the doc `failed`, writes a `dlq_ingest` audit row,
-  pushes a `document_failed` SSE alert). Upload-commit race resolves via backoff retry.
-- **Database-level multi-tenancy** — dual tenant GUCs (`app.current_user_id` +
-  `app.current_user_email`) enforced on every path including Celery (`NullPool` worker
-  engine); split `audit_logs` SELECT/INSERT RLS policies (system/DLQ rows allowed);
-  pooled web engine (`pool_size=5, max_overflow=5`, Neon `-pooler :6543`).
-  Migrations run at boot under `pg_advisory_lock` (`migrations/phase3.sql`).
-- **Prompt-injection firewall** — `<untrusted_document_context>` envelopes, non-execution
-  system directives, token-buffered canary inspection on chat streams (`CANARY_` sliding window).
-- **Abuse control + observability** — Redis-backed rate limits (uploads 10/min, chat
-  20/min, auth 5/min → 429 + `Retry-After`), structlog JSON logs with `X-Correlation-ID`,
-  `/api/health/liveness` + `/api/health/readiness` probes.
-- **Verified deletion** — soft-cancel-first document delete (vectors, shares, drafted
-  actions, binary, `hard_delete` audit) and full account purge (`POST /api/user/purge-account`,
-  both LangGraph thread formats), plus `GET /api/privacy/transparency-log`.
-- **Packaging + docs** — `docker-compose.yml` (API ×4, worker, Redis 7, frontend,
-  `shared_uploads` volume), frontend `/chat` (rate-limit toasts), `/settings` (transparency + purge),
-  `ProcessingCard` queue stepper, two-step `DeletionModal`.
-- **Fast chat** — `CHAT_MODEL` (nano-omni 30B) + single-pass fast lane (<10s) for everything
-  except comparison/action intent, which escalate to the 120B agent loop.
-
-## Live-run notes (verified 2026-09-11, Docker + Neon + Redis + NIM)
-
-- `docker compose up --build -d` serves API `:8000`, frontend `:3000`; Compose reads
-  repo-root `.env` (billing keys live there, not `backend/.env`).
-- Billing runs the **live Razorpay test path** (Key ID + Key Secret + Plan ID wired;
-  webhook secret optional — checkout opens without it, only the post-payment tier flip
-  needs it). With no keys at all it falls back to demo-mode instant upgrade.
-- Sync uploads insert transient `processing` status — included in `chk_documents_status`.
+- **Answers from your documents, not guesses.** It searches first, then answers. If your files don’t have the answer, it says so.
+- **Proof with every fact.** Citations are enforced — the app only accepts references to text the model actually saw. No fake page numbers.
+- **Cross-document comparisons, out loud.** Comparisons stream over SSE so long runs don’t time out and you see each step.
+- **You’re the gate.** External actions pause as `pending_actions`. They expire after 24 hours, and every decision is logged.
+- **Deadlines that nudge you.** Documents expiring in 30 days show up in the notification center with a live feed. Tasks are auto-drafted from due dates.
+- **Share carefully, charge fairly.** Share a lease or warranty by email (view or editor, Pro). Free is 5 documents; Pro is ₹99/month for unlimited, comparisons, approvals, calendar exports, and sharing. Upgrade via Razorpay or one tap in demo mode.
+- **Doesn’t fall over.** If the AI is slow, your upload is still saved and searchable (marked for review). Scanned-image PDFs get a clear message instead of failing silently.
 
 ## Benchmark Results
 
-Observed on Docker Compose + Neon + Redis 7 + NVIDIA NIM (live run 2026-09-11;
-chat tuning 2026-09-13). Small PDFs (2 chunks) — NIM latency moves with server
-load, so read these as observed numbers, not guarantees.
+Tested on Docker Compose + Neon + Redis 7 + NVIDIA NIM. Small PDFs (2 chunks). NIM latency varies with server load, so treat these as what I saw, not promises.
+
+Live run: 2026-09-11. Chat tuning: 2026-09-13.
 
 | Operation | Measured | Notes |
 |-----------|----------|-------|
-| Async ingestion (upload-async → `ready`) | ~18 s (17.6 s) | Embeddings 200, extraction 200, 2 chunks, `ingestion_complete` SSE |
+| Async ingestion (upload-async → `ready`) | ~18 s (17.6 s) | Embed + extract 200 each, 2 chunks, `ingestion_complete` SSE |
 | Cited chat turn (120B, single-doc) | ~5 s | Correct answer + page-1 citation chip |
-| Fast-lane chat (single retrieval + short call) | 6–7 s (7.4 s / 6.2 s) | Default path except comparison/action intent |
-| Summary ("explain this document") | ~11 s (10.9 s) | Templated sections, citations, leak guards |
+| Fast-lane chat (single retrieval) | 6–7 s (7.4 s / 6.2 s) | Default for everything except comparisons/actions |
+| Summary (“explain this document”) | ~11 s (10.9 s) | Templated sections, citations, leak guards |
 | Comparison (multi-doc agent loop) | ~26 s (25.6 s) | 3 scoped searches + cited matrix |
-| Stream first token | ~2 s | Tokens render live; citations resolve on final event |
+| Stream first token | ~2 s | Tokens render live; citations land on final event |
 | Cold login (idle Neon wake) | 3.4 s | Warm logins are faster |
 | Rate-limit trip | 429 + `Retry-After` | Auth 5/min verified live |
 | Delete → transparency log | 204, 0 docs / 0 chunks / 5 audits | Full cascade verified |
 
-Tuning rejections (same key, measured): reasoning nano-30B thinks ~45–50 s per
-turn; Lightning-30B answers fast (~16 s) but poorly; nano-3-30B and kimi-k2.6
-are not entitled on this key (404). Chat stays on the 120B.
+Things I tried and dropped: reasoning `nano-30B` takes ~45–50 s per turn; `Lightning-30B` is fast (~16 s) but answers poorly; `kimi-k2.6` and `nano-3-30B` aren’t entitled on this NIM key (404). So chat stays on the 120B model.
 
 ## Architecture
 
@@ -139,18 +89,55 @@ flowchart TB
     class E,G,H,M,O,P,S store
 ```
 
+### How it runs
+
+How the pieces are deployed and scaled:
+
+```
+                ┌─────────────┐   HTTPS    ┌──────────────────┐
+                │  Next.js 15 │ ─────────► │  backend-api x4  │
+                │  frontend   │ ◄───────── │  FastAPI workers │
+                │  :3000      │    SSE     │  :8000           │
+                └─────────────┘            └────┬───┬─────────┘
+                                                │   │
+                              shared_uploads    │   │  document_pipeline / celery_dlq
+                              /app/uploads      │   ▼
+                           ┌────────────────────┐  ┌──────────────┐
+                           │   celery-worker xN │◄─│ Redis 7+     │
+                           │   --max-tasks-     │  │ broker+result│
+                           │   per-child=50     │  │ + Pub/Sub    │
+                           └────────┬───────────┘  └──────────────┘
+                                    │ NullPool, one conn/task
+                                    ▼
+                           ┌────────────────────┐      ┌──────────────────┐
+                           │ Neon PostgreSQL    │◄─────│ NVIDIA NIM       │
+                           │ pgvector halfvec   │ NIM  │ chat + embeddings│
+                           │ RLS FORCE policies │ API  │ (transient only) │
+                           └────────────────────┘      └──────────────────┘
+```
+
+Workers scale separately (`docker compose up --scale celery-worker=3`). Only API (`:8000`) and frontend (`:3000`) expose host ports. Chat streams in-process over SSE — it never goes through Celery or Redis.
+
+A few details that matter: uploads return 202 with `document_id` + `job_id` and stream progress over Redis Pub/Sub → SSE. If a worker fails after retries, the job goes to `celery_dlq` where `handle_poison_pill_dlq` marks the doc `failed` and pushes an alert. Migrations run at boot under `pg_advisory_lock` with a 4-second bounded timeout so restarts don’t hang.
+
+## Live-run notes (verified 2026-09-11, Docker + Neon + Redis + NIM)
+
+- `docker compose up --build -d` brings up API `:8000` and frontend `:3000`. Compose reads the repo-root `.env` (billing keys live there, not `backend/.env`).
+- Billing uses Razorpay test keys (Key ID + Key Secret + Plan ID). Webhook secret is optional — checkout still opens, only the post-payment tier flip needs it. No keys at all? It falls back to demo-mode instant upgrade.
+- Sync uploads briefly show `processing` — that status is expected in `chk_documents_status`.
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15.1.6 (App Router, React 19) + TypeScript + Tailwind CSS + Tabler.io (`@tabler/core` 1.5.1, `@tabler/icons-react` 3.46.0) |
+| Frontend | Next.js 15.1.6 (App Router, React 19) + TypeScript + Tailwind + Tabler.io (`@tabler/core` 1.5.1, `@tabler/icons-react` 3.46.0) |
 | Backend | Python 3.11 + FastAPI 0.115.6 + Uvicorn + SQLAlchemy[asyncio] + asyncpg |
-| AI | NVIDIA NIM `nemotron-3-super-120b-a12b` (tool calling) + `nemotron-3-embed-1b` (2048) via `openai.AsyncOpenAI` + `httpx` (15 s default; 30 s + 1 retry for chat turns and extraction) |
-| Orchestration | LangGraph 0.2.59 + `AsyncPostgresSaver` (same Neon DB; optional — falls back to the built-in loop) + `langchain-openai` |
-| Data | Neon Serverless Postgres + `pgvector` (`vector(2048)` → `halfvec(2048)` HNSW `halfvec_cosine_ops`) + RLS `FORCE` (id + email) |
-| Parsing | PyMuPDF (`fitz`) — sorted reading order, block fallback, AcroForm widgets, scanned-page detection; `page_number` preserved for citations |
+| AI | NVIDIA NIM `nemotron-3-super-120b-a12b` + `nemotron-3-embed-1b` (2048) via `openai.AsyncOpenAI` + `httpx` (15 s default; 30 s + 1 retry for chat/extraction) |
+| Orchestration | LangGraph 0.2.59 + `AsyncPostgresSaver` (same Neon DB; falls back to built-in loop) + `langchain-openai` |
+| Data | Neon Serverless Postgres + `pgvector` (`halfvec(2048)` HNSW `halfvec_cosine_ops`) + RLS `FORCE` (id + email) |
+| Parsing | PyMuPDF (`fitz`) — sorted reading order, block fallback, AcroForm widgets, scanned-page detection; `page_number` kept for citations |
 | Auth | Self-managed JWT (`PyJWT` + `bcrypt` 72B cap) carrying id + email for shared-access RLS |
-| Billing    | Razorpay 1.4.2 (Test Mode `rzp_test_*`); `/webhook` is HMAC-authed by signature (no JWT) and needs `RAZORPAY_WEBHOOK_SECRET`; demo-mode instant flip when keys are absent |
+| Billing | Razorpay 1.4.2 Test Mode (`rzp_test_*`); `/webhook` verifies HMAC signature, needs `RAZORPAY_WEBHOOK_SECRET`; demo-mode flip when keys absent |
 | Realtime | `sse-starlette` — `POST /chat/stream` progress frames + `GET /notifications/stream` live feed |
 | Deploy | Vercel (frontend) · Render / Docker (backend, `render.yaml` Blueprint) · Neon (db) |
 
@@ -160,35 +147,33 @@ flowchart TB
 |-------|---------|-----|
 | `users` | self-managed identity + `subscription_tier` (`free`/`pro`), `razorpay_customer_id`, `document_count` | — (login must read before tenant ctx) |
 | `documents` | `filename`, `category`, `status` (`ready`/`needs_review`), `raw_text`, `metadata JSONB`, `has_actionable_deadline` | `FORCE`, owner-OR-shared |
-| `document_chunks` | `document_id`, `user_id`, `filename`, `page_number`, `chunk_index`, `content`, `embedding vector(2048)` | `FORCE`, owner-OR-shared |
+| `document_chunks` | `document_id`, `user_id`, `filename`, `page_number`, `chunk_index`, `content`, `embedding halfvec(2048)` | `FORCE`, owner-OR-shared |
 | `document_shares` | `document_id`, `owner_id`, `shared_with_email`, `permission` (`view`/`editor`) | `FORCE`, owner-OR-recipient |
 | `pending_actions` | `action_type`, `payload JSONB`, `status` (`pending`/`approved`/`rejected`/`expired`), `expires_at` (+24 h) | `FORCE` |
 | `notifications` | `title`, `message`, `type` (`deadline`/`system`/`sharing`), `is_read`, `due_date` | `FORCE` |
 | `tasks` | `title`, `due_date DATE`, `status`, `document_id ON DELETE CASCADE` | `FORCE` |
 | `audit_logs` | `action_type`, `tool_name`, `input/output JSONB`, `execution_time_ms` | `FORCE` |
 
-Indexes: `user_id`, `metadata->>'action_deadline'`, `category`, `document_shares(shared_with_email)`, `pending_actions(status)`, unread notifications, and `USING hnsw ((embedding::halfvec(2048)) halfvec_cosine_ops)`.
+Indexes on `user_id`, `metadata->>'action_deadline'`, `category`, `document_shares(shared_with_email)`, `pending_actions(status)`, unread notifications, and `USING hnsw ((embedding::halfvec(2048)) halfvec_cosine_ops)`.
 
-Tier rules live in the API, not the database: free owners get 403 on share creation and past 5 uploads; `synthesize_documents`, calendar export, and approvals UI are Pro-gated.
+Tier rules live in the API, not the database: free owners get 403 past 5 uploads and on share creation; `synthesize_documents`, calendar export, and approvals are Pro-only.
 
 ## Technical Decisions Log
 
-Trade-offs made under constraints: single Neon DB, NVIDIA NIM credit, Render 4-worker limit, and Indian billing (Razorpay).
+These are the calls I made under tight constraints: one Neon DB, NIM credits, Render’s 4-worker limit, and Razorpay for India.
 
 | Decision | Alternatives | Trade-off | Why this |
 |---|---|---|---|
-| Neon + `pgvector` `halfvec(2048)` HNSW | Pinecone / Qdrant / `vector(2048)` | `halfvec` halves memory/storage vs `vector`; HNSW gives <10 ms ANN but higher build cost than IVFFlat; no extra vector service to operate | One DB for transactional + vector, stays inside Neon 10-conn pooled budget (`pool_size=5,max_overflow=5`). IVF would need retuning per data size. |
-| NVIDIA NIM `nemotron-3-super-120B` + `nemotron-3-embed-1b` | OpenAI GPT-4o + `text-embedding-3-large` | NIM is cheaper/credit-bounded and 2048-dim; latency ~5 s cited / ~26 s comparison (measured) vs OpenAI lower variance but USD billing and 3072-dim | Credit already entitled; token-for-token cheaper for India, single `AsyncOpenAI` client. Fallback is local `needs_review` not vendor lock. |
-| LangGraph `AsyncPostgresSaver` + fallback loop | Pure loop / Temporal / Step Functions | Graph gives interrupt→approve→resume with durable checkpoint; fallback loop avoids hard dep on checkpoint table | Approvals must survive restarts (24 h expiry, audit). PostgresSaver reuses Neon; no extra infra vs Temporal. |
-| Celery + Redis 7 (`document_pipeline` + `celery_dlq`) | RQ / BullMQ / SQS | Celery gives bounded concurrency, `--max-tasks-per-child=50`, real DLQ dispatch; heavier than RQ, needs Redis | Need backoff retries (2→4→8 s), poison-pill isolation (`handle_poison_pill_dlq`), and stage-boundary cancellation — RQ lacks per-queue max-tasks controls. |
-| PyMuPDF (`fitz`) | pdfminer.six / pypdf | PyMuPDF preserves reading order, AcroForm widgets, scanned-page flag; native dep vs pure-Python | Citations need exact `page_number`; scanned detection must fail gracefully, not silently drop text. |
-| Self-managed JWT (`PyJWT` + `bcrypt`, dual GUC `id+email`) | Clerk / Auth0 / Supabase Auth | Own JWT carries both `app.current_user_id`+`email` for `RLS FORCE` owner-OR-shared; no vendor lock, but we own rotation | Sharing requires email-based RLS — external auth wouldn't propagate `shared_with_email` without custom claims. |
-| `RLS FORCE` on every table | App-layer `WHERE user_id=` | DB-enforced tenant isolation closes missed-filter bugs; requires setting GUC on every session (incl. Celery `NullPool`) | Security boundary in DB, not app. Split `audit_logs` SELECT/INSERT policies allow system/DLQ rows with NULL tenant. |
-| `sse-starlette` (SSE) | WebSockets / polling | SSE is one-way, works behind Render/Vercel proxies, auto-reconnects; no bidirectional overhead | Chat progress (`POST /chat/stream`) and `GET /notifications/live` are server-push only. Tokens stream live, citations resolve on final event. |
-| Razorpay Test Mode → live HMAC webhook | Stripe | Razorpay supports UPI/cards + ₹99 plan natively; webhook HMAC is fail-closed if secret mismatched | Indian market; demo-mode flip when keys absent keeps dev friction zero. |
-| Render (`render.yaml` Blueprint, `pg_advisory_lock` migrations) + Vercel + Neon pooler `:6543` | Kubernetes / ECS / self-hosted PG | Blueprint gives 4× API workers + disk-ephemeral warning (`/app/uploads` wipes on deploy); pooler caps at 10 conns | Minimal ops, migrations serialized by advisory lock with 4 s bounded timeout so boot never hangs. |
-
-Rejected tunings are logged in Benchmark Results: reasoning `nano-30B` (~45 s/turn) and `Lightning-30B` (fast but poor) were measured and discarded; chat stays on 120B.
+| Neon + `pgvector` `halfvec(2048)` HNSW | Pinecone / Qdrant / full `vector(2048)` | `halfvec` halves memory/storage vs `vector`; HNSW is <10 ms ANN but heavier to build than IVFFlat; no extra service to run | One DB for everything, fits Neon’s 10-connection pooled budget (`pool_size=5, max_overflow=5`). IVF would need re-tuning as data grows. |
+| NVIDIA NIM `nemotron-3-super-120B` + `nemotron-3-embed-1b` | OpenAI GPT-4o + `text-embedding-3-large` | NIM is cheaper on this credit and 2048-dim; ~5 s cited answers / ~26 s comparisons (measured) vs OpenAI’s lower variance but USD billing and 3072-dim | Credit was already entitled, single `AsyncOpenAI` client, and we fallback to `needs_review` instead of failing when the model is down. |
+| LangGraph `AsyncPostgresSaver` + fallback loop | Plain loop / Temporal / Step Functions | Graph gives interrupt → approve → resume with durable checkpoints; fallback loop means approvals still work if the checkpoint table isn’t there | Approvals must survive restarts (24 h expiry, audit). Reuses Neon, no new infra like Temporal. |
+| Celery + Redis 7 (`document_pipeline` + `celery_dlq`) | RQ / BullMQ / SQS | Celery gives bounded concurrency, `--max-tasks-per-child=50`, and a real DLQ; heavier than RQ and needs Redis | Need 2→4→8 s backoff, poison-pill isolation (`handle_poison_pill_dlq`), and stage-boundary cancellation — RQ doesn’t have per-queue max-tasks controls. |
+| PyMuPDF (`fitz`) | pdfminer.six / pypdf | PyMuPDF keeps reading order, AcroForm widgets, and flags scanned pages; it’s a native dep vs pure-Python | Citations need exact `page_number`; scanned PDFs should explain instead of silently dropping text. |
+| Self-managed JWT (dual GUC `id+email`) | Clerk / Auth0 / Supabase Auth | Own JWT carries both `app.current_user_id` and `email` for RLS owner-OR-shared; no vendor lock, but we own rotation | Sharing needs `shared_with_email` in RLS — external auth wouldn’t propagate that without custom claims. |
+| `RLS FORCE` on every table | App-layer `WHERE user_id=` | DB enforces tenant isolation so a missed filter can’t leak; every session (including Celery `NullPool` workers) must set GUCs | Security in the DB, not the app. Split `audit_logs` policies allow system/DLQ rows with NULL tenant. |
+| `sse-starlette` (SSE) | WebSockets / polling | SSE is one-way, works behind Render/Vercel proxies, auto-reconnects; no bidirectional overhead | Chat progress and notifications are server-push only. Tokens stream live, citations settle on the final event. |
+| Razorpay Test Mode + HMAC webhook | Stripe | Razorpay supports UPI/cards and ₹99 plans natively; webhook fails closed if HMAC doesn’t match | India market; demo-mode flip when keys are absent keeps local dev friction at zero. |
+| Render Blueprint + `pg_advisory_lock` + Vercel + Neon pooler `:6543` | Kubernetes / ECS / self-hosted Postgres | Blueprint gives 4× API workers; `/app/uploads` is ephemeral on redeploy; pooler caps at 10 conns | Minimal ops. Advisory lock with 4 s timeout means migrations don’t hang boot. Add a Render Disk on `/app/uploads` if redeploys annoy you. |
 
 ## Project Structure
 
@@ -241,7 +226,7 @@ Prova/
 └── .gitignore
 ```
 
-## Example Questions
+## Try it
 
 **Structured (via `query_structured_data`)**
 - Which policies expire next month?
@@ -261,18 +246,16 @@ Prova/
 - Create a task to renew my insurance on 2026-10-10.
 - Remind me to pay the electricity bill by Friday — drafts an approval card first.
 
-## Deployment
+## Run locally
 
-| Component | Local URL | Notes |
-|-----------|-----------|-------|
+| Component | Local URL | How |
+|-----------|-----------|-----|
 | Frontend | `http://localhost:3002` | `npm run dev -- --port 3002` (Next 15.1.6) |
 | Backend | `http://127.0.0.1:8002` | `uvicorn app.main:app --host 127.0.0.1 --port 8002` (`/docs` for Swagger) |
 
-Production: Vercel serves `frontend/` with `NEXT_PUBLIC_API_BASE_URL` pointing at Render, where the
-`render.yaml` Blueprint runs `backend/Dockerfile` (migrations on boot, `/health` checks) against Neon.
-Without Razorpay keys billing runs in demo mode — checkout flips the tier instantly with the same audit trail.
-Live mode additionally requires the Dashboard webhook (`POST /billing/webhook` for
-`subscription.activated` + `subscription.charged`) and `RAZORPAY_WEBHOOK_SECRET`.
+Production: Vercel serves `frontend/` with `NEXT_PUBLIC_API_BASE_URL` pointing at Render, where `render.yaml` runs `backend/Dockerfile` (migrations on boot, `/health` checks) against Neon.
+
+Without Razorpay keys, billing runs in demo mode — checkout flips the tier instantly with the same audit trail. Live mode needs the webhook `POST /billing/webhook` for `subscription.activated` + `subscription.charged` and `RAZORPAY_WEBHOOK_SECRET`.
 
 ## Author
 
