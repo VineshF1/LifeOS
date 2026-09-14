@@ -6,7 +6,9 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "http://localhost:8000";
 
-const TOKEN_KEY = "lifeos.token";
+const TOKEN_KEY = "prova.token";
+const TOKEN_COOKIE = "prova.token";
+const LEGACY_KEY = "lifeos.token";
 
 // Upload runs chunking, embedding and extraction; chat runs up to 4 agent turns.
 const UPLOAD_TIMEOUT_MS = 180_000;
@@ -25,15 +27,24 @@ export class ApiError extends Error {
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  const local = window.localStorage.getItem(TOKEN_KEY) || window.localStorage.getItem(LEGACY_KEY);
+  if (local) return local;
+  const match = document.cookie.match(/(?:^|; )prova\.token=([^;]*)/) || document.cookie.match(/(?:^|; )lifeos\.token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
+  window.localStorage.removeItem(LEGACY_KEY);
+  document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=604800; SameSite=Lax`;
+  document.cookie = `${LEGACY_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(LEGACY_KEY);
+  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  document.cookie = `${LEGACY_KEY}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 // --------------------------------------------------------------------------
