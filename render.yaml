@@ -4,7 +4,7 @@
 #   Dockerfile: backend/Dockerfile (runs `python -m app.init_db` then uvicorn
 #               --workers 4 on $PORT; /api/health/liveness is the health check)
 #   Env:      DATABASE_URL  = Neon pooled URL (-pooler, :6543, sslmode=require)
-#             REDIS_URL     = from the lifeos-redis database below (auto-wired)
+#             REDIS_URL     = from the prova-redis database below (auto-wired)
 #             NVIDIA_API_KEY = nvapi-... (NIM)
 #             JWT_SECRET     = long random string (generateValue)
 #             CHAT_MODEL     = nano-omni 30B default (override to 120B if wanted)
@@ -32,7 +32,7 @@
 #
 # Frontend (Vercel, NOT Render):
 #   Root:  frontend/
-#   Env:   NEXT_PUBLIC_API_BASE_URL=https://lifeos-api.onrender.com
+#   Env:   NEXT_PUBLIC_API_BASE_URL=https://prova-api.onrender.com
 #
 # Database (Neon):
 #   - pgvector extension + init_db applies schema.sql, phase2.sql, phase3.sql.
@@ -40,7 +40,7 @@
 
 services:
   - type: web
-    name: lifeos-api
+    name: prova-api
     runtime: docker
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
@@ -75,7 +75,7 @@ services:
   # skip the worker and use sync POST /documents/upload (no Redis needed for
   # uploads; rate limiting fails open without Redis).
   # - type: worker
-  #   name: lifeos-worker
+  #   name: prova-worker
   #   runtime: docker
   #   dockerContext: ./backend
   #   dockerfilePath: ./backend/Dockerfile
